@@ -1,0 +1,3 @@
+Startup task started
+init_db done
+Seed command executed
