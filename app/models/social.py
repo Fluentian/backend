@@ -1,9 +1,8 @@
 """Social domain models: Room, Message, CallSession."""
 
 import enum
-from datetime import datetime
 import uuid
-from uuid import uuid4
+from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID

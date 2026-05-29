@@ -12,7 +12,9 @@ from app.models.social import CallSession, Message, Room
 logger = logging.getLogger(__name__)
 
 
-async def list_rooms(db: AsyncSession, target_language_id: UUID | None = None, offset: int = 0, limit: int = 20) -> tuple[list[Room], int]:
+async def list_rooms(
+    db: AsyncSession, target_language_id: UUID | None = None, offset: int = 0, limit: int = 20
+) -> tuple[list[Room], int]:
     """List public rooms."""
     query = select(Room)
     count_query = select(func.count()).select_from(Room)
@@ -33,7 +35,9 @@ async def create_room(db: AsyncSession, user_id: UUID, **kwargs: object) -> Room
     return room
 
 
-async def list_messages(db: AsyncSession, room_id: UUID, offset: int = 0, limit: int = 30) -> tuple[list[Message], int]:
+async def list_messages(
+    db: AsyncSession, room_id: UUID, offset: int = 0, limit: int = 30
+) -> tuple[list[Message], int]:
     """List messages in a room (newest first)."""
     query = select(Message).where(Message.room_id == room_id).order_by(Message.created_at.desc())
     count_query = select(func.count()).select_from(Message).where(Message.room_id == room_id)
@@ -42,7 +46,9 @@ async def list_messages(db: AsyncSession, room_id: UUID, offset: int = 0, limit:
     return items, total
 
 
-async def create_message(db: AsyncSession, user_id: UUID, room_id: UUID, **kwargs: object) -> Message:
+async def create_message(
+    db: AsyncSession, user_id: UUID, room_id: UUID, **kwargs: object
+) -> Message:
     """Create a new message."""
     msg = Message(sender_user_id=user_id, room_id=room_id, **kwargs)  # type: ignore[arg-type]
     db.add(msg)
@@ -51,7 +57,9 @@ async def create_message(db: AsyncSession, user_id: UUID, room_id: UUID, **kwarg
     return msg
 
 
-async def create_call(db: AsyncSession, user_id: UUID, room_id: UUID, **kwargs: object) -> CallSession:
+async def create_call(
+    db: AsyncSession, user_id: UUID, room_id: UUID, **kwargs: object
+) -> CallSession:
     """Create a call session."""
     call = CallSession(started_by=user_id, room_id=room_id, **kwargs)  # type: ignore[arg-type]
     db.add(call)

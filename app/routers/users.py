@@ -1,8 +1,9 @@
 """User router — profiles, settings, and hearts."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
 
 from app.database import get_db
 from app.dependencies import get_current_active_user
@@ -10,6 +11,7 @@ from app.models.user import User
 from app.schemas.user import (
     AvatarResponse,
     HeartsResponse,
+    OnboardingUpdateRequest,
     ProfileResponse,
     PublicUserResponse,
     SettingsResponse,
@@ -30,22 +32,44 @@ async def get_me(user: User = Depends(get_current_active_user)):
 
 
 @router.patch("/me", response_model=UserResponse)
-async def update_me(req: UpdateUserRequest, user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def update_me(
+    req: UpdateUserRequest,
+    user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Update current user."""
     return await user_service.update_user(db, user, **req.model_dump(exclude_unset=True))
 
 
+@router.put("/me", response_model=UserResponse)
+async def update_me_onboarding(
+    req: OnboardingUpdateRequest,
+    user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Combined update for user, profile, and settings during onboarding or profile editing (PUT)."""
+    return await user_service.update_user_onboarding(db, user, **req.model_dump(exclude_unset=True))
+
+
 @router.patch("/me/profile", response_model=ProfileResponse)
-async def update_my_profile(req: UpdateProfileRequest, user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def update_my_profile(
+    req: UpdateProfileRequest,
+    user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Update user profile."""
     return await user_service.update_profile(db, user.id, **req.model_dump(exclude_unset=True))
 
 
 @router.patch("/me/settings", response_model=SettingsResponse)
-async def update_my_settings(req: UpdateSettingsRequest, user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def update_my_settings(
+    req: UpdateSettingsRequest,
+    user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Update user settings."""
     return await user_service.update_settings(db, user.id, **req.model_dump(exclude_unset=True))
- 
+
 
 @router.get("/me/hearts", response_model=HeartsResponse)
 async def get_my_hearts(user: User = Depends(get_current_active_user)):
@@ -55,7 +79,11 @@ async def get_my_hearts(user: User = Depends(get_current_active_user)):
 
 
 @router.post("/me/avatar", response_model=AvatarResponse)
-async def upload_avatar(file: UploadFile = File(...), user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Upload avatar image."""
     # TODO: Implement actual S3 upload
     mock_url = f"https://s3.amazonaws.com/fluentian/avatars/{user.id}.jpg"

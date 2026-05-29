@@ -1,7 +1,7 @@
 """Progress service — lesson completion, XP, streaks, hearts, enrollment."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -15,7 +15,7 @@ from app.core.constants import (
     XP_MULTIPLIER_PERFECT,
 )
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models.content import CourseEnrollment, Lesson, PathUnit
+from app.models.content import CourseEnrollment, Lesson
 from app.models.progress import UserLessonProgress, UserUnitProgress
 from app.models.user import User
 from app.schemas.progress import AnswerPayload
@@ -37,10 +37,14 @@ async def complete_lesson(
     if not lesson:
         raise NotFoundError("Lesson not found")
 
-    if score >= 1.0: multiplier = XP_MULTIPLIER_PERFECT
-    elif score >= 0.8: multiplier = XP_MULTIPLIER_GOOD
-    elif score >= PASS_THRESHOLD: multiplier = XP_MULTIPLIER_PASS
-    else: multiplier = XP_MULTIPLIER_FAIL
+    if score >= 1.0:
+        multiplier = XP_MULTIPLIER_PERFECT
+    elif score >= 0.8:
+        multiplier = XP_MULTIPLIER_GOOD
+    elif score >= PASS_THRESHOLD:
+        multiplier = XP_MULTIPLIER_PASS
+    else:
+        multiplier = XP_MULTIPLIER_FAIL
 
     xp_earned = int(lesson.xp_reward * multiplier)
     wrong_answers = sum(1 for a in answers if not a.is_correct)
@@ -54,7 +58,7 @@ async def complete_lesson(
     )
     progress = progress_result.scalar_one_or_none()
     lesson_completed = score >= PASS_THRESHOLD
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if not progress:
         progress = UserLessonProgress(
@@ -76,7 +80,9 @@ async def complete_lesson(
     if user.last_activity_date is None or user.last_activity_date.date() != today:
         if user.last_activity_date and user.last_activity_date.date() == today - timedelta(days=1):
             user.streak_days += 1
-        elif user.last_activity_date is None or user.last_activity_date.date() < today - timedelta(days=1):
+        elif user.last_activity_date is None or user.last_activity_date.date() < today - timedelta(
+            days=1
+        ):
             user.streak_days = 1
         user.last_activity_date = now
 
@@ -100,7 +106,11 @@ async def get_user_lesson_progress(
 ) -> tuple[list[UserLessonProgress], int]:
     """Get lesson progress records for a user."""
     query = select(UserLessonProgress).where(UserLessonProgress.user_id == user_id)
-    count_query = select(func.count()).select_from(UserLessonProgress).where(UserLessonProgress.user_id == user_id)
+    count_query = (
+        select(func.count())
+        .select_from(UserLessonProgress)
+        .where(UserLessonProgress.user_id == user_id)
+    )
     if completed is not None:
         query = query.where(UserLessonProgress.completed == completed)
         count_query = count_query.where(UserLessonProgress.completed == completed)
@@ -113,15 +123,44 @@ async def get_user_unit_progress(
     db: AsyncSession, user_id: UUID, offset: int = 0, limit: int = 20
 ) -> tuple[list[UserUnitProgress], int]:
     """Get unit progress records for a user."""
-    total = (await db.execute(select(func.count()).select_from(UserUnitProgress).where(UserUnitProgress.user_id == user_id))).scalar() or 0
-    items = list((await db.execute(select(UserUnitProgress).where(UserUnitProgress.user_id == user_id).offset(offset).limit(limit))).scalars().all())
+    total = (
+        await db.execute(
+            select(func.count())
+            .select_from(UserUnitProgress)
+            .where(UserUnitProgress.user_id == user_id)
+        )
+    ).scalar() or 0
+    items = list(
+        (
+            await db.execute(
+                select(UserUnitProgress)
+                .where(UserUnitProgress.user_id == user_id)
+                .offset(offset)
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return items, total
 
 
 async def get_user_stats(db: AsyncSession, user: User) -> dict:
     """Aggregate stats for the current user."""
-    lessons_completed = (await db.execute(select(func.count()).select_from(UserLessonProgress).where(UserLessonProgress.user_id == user.id, UserLessonProgress.completed.is_(True)))).scalar() or 0
-    units_completed = (await db.execute(select(func.count()).select_from(UserUnitProgress).where(UserUnitProgress.user_id == user.id, UserUnitProgress.is_completed.is_(True)))).scalar() or 0
+    lessons_completed = (
+        await db.execute(
+            select(func.count())
+            .select_from(UserLessonProgress)
+            .where(UserLessonProgress.user_id == user.id, UserLessonProgress.completed.is_(True))
+        )
+    ).scalar() or 0
+    units_completed = (
+        await db.execute(
+            select(func.count())
+            .select_from(UserUnitProgress)
+            .where(UserUnitProgress.user_id == user.id, UserUnitProgress.is_completed.is_(True))
+        )
+    ).scalar() or 0
     return {
         "total_xp": user.xp_total,
         "streak_days": user.streak_days,
@@ -135,7 +174,11 @@ async def get_user_stats(db: AsyncSession, user: User) -> dict:
 
 async def enroll_in_course(db: AsyncSession, user_id: UUID, course_id: UUID) -> CourseEnrollment:
     """Enroll a user in a course."""
-    existing = await db.execute(select(CourseEnrollment).where(CourseEnrollment.user_id == user_id, CourseEnrollment.course_id == course_id))
+    existing = await db.execute(
+        select(CourseEnrollment).where(
+            CourseEnrollment.user_id == user_id, CourseEnrollment.course_id == course_id
+        )
+    )
     if existing.scalar_one_or_none():
         raise ConflictError("Already enrolled in this course")
     enrollment = CourseEnrollment(user_id=user_id, course_id=course_id)
@@ -147,11 +190,29 @@ async def enroll_in_course(db: AsyncSession, user_id: UUID, course_id: UUID) -> 
 
 async def _check_unit_completion(db: AsyncSession, user_id: UUID, unit_id: UUID) -> bool:
     """Check if all lessons in a unit are completed."""
-    total_lessons = (await db.execute(select(func.count()).select_from(Lesson).where(Lesson.unit_id == unit_id))).scalar() or 0
-    if total_lessons == 0: return False
-    completed_lessons = (await db.execute(select(func.count()).select_from(UserLessonProgress).join(Lesson, UserLessonProgress.lesson_id == Lesson.id).where(UserLessonProgress.user_id == user_id, Lesson.unit_id == unit_id, UserLessonProgress.completed.is_(True)))).scalar() or 0
+    total_lessons = (
+        await db.execute(select(func.count()).select_from(Lesson).where(Lesson.unit_id == unit_id))
+    ).scalar() or 0
+    if total_lessons == 0:
+        return False
+    completed_lessons = (
+        await db.execute(
+            select(func.count())
+            .select_from(UserLessonProgress)
+            .join(Lesson, UserLessonProgress.lesson_id == Lesson.id)
+            .where(
+                UserLessonProgress.user_id == user_id,
+                Lesson.unit_id == unit_id,
+                UserLessonProgress.completed.is_(True),
+            )
+        )
+    ).scalar() or 0
     if completed_lessons >= total_lessons:
-        up_result = await db.execute(select(UserUnitProgress).where(UserUnitProgress.user_id == user_id, UserUnitProgress.unit_id == unit_id))
+        up_result = await db.execute(
+            select(UserUnitProgress).where(
+                UserUnitProgress.user_id == user_id, UserUnitProgress.unit_id == unit_id
+            )
+        )
         unit_progress = up_result.scalar_one_or_none()
         if not unit_progress:
             db.add(UserUnitProgress(user_id=user_id, unit_id=unit_id, is_completed=True))

@@ -10,15 +10,15 @@ from app.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.middleware import setup_middleware
 from app.routers import (
+    analytics,
     auth,
     content,
+    import_content,
     notifications,
     opportunities,
     progress,
     students,
     users,
-    analytics,
-    import_content,
 )
 
 # Configure logging
@@ -138,22 +138,15 @@ async def lifespan(app: FastAPI):
                 )
             )
             await conn.execute(
-                text(
-                    "ALTER TABLE opportunity_applications "
-                    "ADD COLUMN IF NOT EXISTS education TEXT"
-                )
+                text("ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS education TEXT")
             )
             await conn.execute(
                 text(
-                    "ALTER TABLE opportunity_applications "
-                    "ADD COLUMN IF NOT EXISTS experience TEXT"
+                    "ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS experience TEXT"
                 )
             )
             await conn.execute(
-                text(
-                    "ALTER TABLE opportunity_applications "
-                    "ADD COLUMN IF NOT EXISTS skills TEXT"
-                )
+                text("ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS skills TEXT")
             )
 
             # Seed French language

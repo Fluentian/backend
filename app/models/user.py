@@ -1,9 +1,8 @@
 """User domain models: User, UserProfile, UserSettings, Notification, OpportunityBoard."""
 
 import enum
-from datetime import datetime
 import uuid
-from uuid import uuid4
+from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -189,7 +188,7 @@ class OpportunityApplication(UUIDMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    
+
     # Professional Profile Fields for Application
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -198,8 +197,10 @@ class OpportunityApplication(UUIDMixin, Base):
     experience: Mapped[str | None] = mapped_column(Text, nullable=True)
     skills: Mapped[str | None] = mapped_column(Text, nullable=True)
     motivation: Mapped[str] = mapped_column(Text, nullable=False)
-    
-    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False) # pending, accepted, rejected
+
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending", nullable=False
+    )  # pending, accepted, rejected
     resume_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

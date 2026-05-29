@@ -1,15 +1,6 @@
 """Fluentian ORM models — import all models so they register with Base.metadata."""
 
 from app.models.base import Base  # noqa: F401
-from app.models.user import (  # noqa: F401
-    AppRole,
-    Notification,
-    OpportunityBoard,
-    ProficiencyLevel,
-    User,
-    UserProfile,
-    UserSettings,
-)
 from app.models.content import (  # noqa: F401
     Course,
     CourseEnrollment,
@@ -25,6 +16,15 @@ from app.models.content import (  # noqa: F401
     UnitKind,
 )
 from app.models.progress import UserLessonProgress, UserUnitProgress  # noqa: F401
+from app.models.user import (  # noqa: F401
+    AppRole,
+    Notification,
+    OpportunityBoard,
+    ProficiencyLevel,
+    User,
+    UserProfile,
+    UserSettings,
+)
 
 __all__ = [
     "Base",

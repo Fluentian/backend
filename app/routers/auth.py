@@ -18,8 +18,6 @@ from app.schemas.auth import (
 from app.schemas.common import MessageResponse
 from app.services import auth_service
 
-from app.models.user import User
-
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -59,10 +57,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(
-    user: User = Depends(get_current_user),
-    authorization: str | None = Header(None)
-):
+async def logout(user: User = Depends(get_current_user), authorization: str | None = Header(None)):
     """Log out user and revoke token."""
     token = None
     if authorization and authorization.startswith("Bearer "):
@@ -76,7 +71,8 @@ async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends
     """Request a password reset."""
     code = await auth_service.request_password_reset(db, req.email)
     res = {"message": "Password reset email sent if account exists"}
-    if code: res["detail"] = code # For MVP debug
+    if code:
+        res["detail"] = code  # For MVP debug
     return res
 
 

@@ -9,17 +9,20 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.database import get_db
+
+# Force settings to use the test database before importing database/main modules
+if not settings.DATABASE_URL.endswith("_test"):
+    settings.DATABASE_URL += "_test"
+settings.APP_ENV = "testing"
+
+from app.database import get_db, engine  # Re-use the application's test engine
 from app.main import app
 from app.models.base import Base
 
-# Test database URL (can be overridden by environment)
-TEST_DATABASE_URL = settings.DATABASE_URL + "_test"
-
-engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False
 )
+
 
 
 @pytest.fixture(scope="session")
@@ -36,9 +39,12 @@ async def setup_test_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+    await engine.dispose()
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
 
 
 @pytest_asyncio.fixture
@@ -47,6 +53,8 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with TestingSessionLocal() as session:
         yield session
         await session.rollback()
+    await engine.dispose()
+
 
 
 @pytest_asyncio.fixture

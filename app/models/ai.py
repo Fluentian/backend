@@ -1,8 +1,7 @@
 """AI domain models: AiConversation, AiConversationMessage, AiExplanation."""
 
-from datetime import datetime
 import uuid
-from uuid import uuid4
+from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID

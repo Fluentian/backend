@@ -1,8 +1,7 @@
 """Progress domain models: UserLessonProgress, UserUnitProgress."""
 
-from datetime import datetime
 import uuid
-from uuid import uuid4
+from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,9 +23,7 @@ class UserLessonProgress(UUIDMixin, Base):
     )
     mastery_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

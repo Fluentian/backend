@@ -2,9 +2,8 @@
 PathUnit, Lesson, LessonBlock, Question."""
 
 import enum
-from datetime import datetime
 import uuid
-from uuid import uuid4
+from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
@@ -13,14 +12,12 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    Text,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
-
 
 # ── Enums ───────────────────────────────────────────────
 
@@ -133,10 +130,10 @@ class Course(UUIDMixin, Base):
 
     # Relationships
     units: Mapped[list["PathUnit"]] = relationship(
-        "PathUnit", back_populates="course", lazy="selectin"
+        "PathUnit", back_populates="course", lazy="selectin", cascade="all, delete-orphan"
     )
     lessons: Mapped[list["Lesson"]] = relationship(
-        "Lesson", back_populates="course", lazy="noload"
+        "Lesson", back_populates="course", lazy="noload", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -180,7 +177,7 @@ class PathUnit(UUIDMixin, TimestampMixin, Base):
     # Relationships
     course: Mapped["Course"] = relationship("Course", back_populates="units")
     lessons: Mapped[list["Lesson"]] = relationship(
-        "Lesson", back_populates="unit", lazy="selectin"
+        "Lesson", back_populates="unit", lazy="selectin", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -211,10 +208,10 @@ class Lesson(UUIDMixin, TimestampMixin, Base):
     course: Mapped["Course"] = relationship("Course", back_populates="lessons")
     unit: Mapped["PathUnit"] = relationship("PathUnit", back_populates="lessons")
     blocks: Mapped[list["LessonBlock"]] = relationship(
-        "LessonBlock", back_populates="lesson", lazy="selectin"
+        "LessonBlock", back_populates="lesson", lazy="selectin", cascade="all, delete-orphan"
     )
     questions: Mapped[list["Question"]] = relationship(
-        "Question", back_populates="lesson", lazy="selectin"
+        "Question", back_populates="lesson", lazy="selectin", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

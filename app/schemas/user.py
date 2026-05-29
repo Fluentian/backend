@@ -5,7 +5,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-
 # ── User ────────────────────────────────────────────────
 
 
@@ -49,6 +48,32 @@ class UpdateUserRequest(BaseModel):
 
     username: str | None = None
     daily_goal_minutes: int | None = None
+
+
+class OnboardingUpdateRequest(BaseModel):
+    """Update during onboarding / profile PUT."""
+
+    # User fields
+    username: str | None = None
+    current_level: str | None = None
+    daily_goal_minutes: int | None = None
+    daily_goal_xp: int | None = None
+    ui_language_id: UUID | None = None
+    base_language_id: UUID | None = None
+    target_language_id: UUID | None = None
+
+    # Profile fields
+    display_name: str | None = None
+    avatar_url: str | None = None
+    bio: str | None = None
+    learning_goal: str | None = None
+    preferred_voice_id: UUID | None = None
+
+    # Settings fields
+    notifications_enabled: bool | None = None
+    offline_mode_enabled: bool | None = None
+    autoplay_audio: bool | None = None
+    sound_enabled: bool | None = None
 
 
 # ── Profile ─────────────────────────────────────────────
@@ -118,9 +143,11 @@ class HeartsResponse(BaseModel):
 class AvatarResponse(BaseModel):
     """Avatar upload result."""
 
+
 # ── Notifications ───────────────────────────────────────
 class NotificationResponse(BaseModel):
     """Notification response."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -135,6 +162,7 @@ class NotificationResponse(BaseModel):
 
 class OpportunityResponse(BaseModel):
     """Opportunity listing response."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -148,6 +176,7 @@ class OpportunityResponse(BaseModel):
 
 class CreateOpportunityRequest(BaseModel):
     """Create a new opportunity Listing."""
+
     title: str
     description: str
     type: str
@@ -157,6 +186,7 @@ class CreateOpportunityRequest(BaseModel):
 
 class OpportunityApplicationResponse(BaseModel):
     """Opportunity application response."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -178,6 +208,7 @@ class OpportunityApplicationResponse(BaseModel):
 
 class ApplyOpportunityRequest(BaseModel):
     """User request to apply for an opportunity."""
+
     full_name: str
     email: str
     phone: str | None = None

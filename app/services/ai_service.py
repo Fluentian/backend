@@ -8,7 +8,7 @@ import google.generativeai as genai
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.ai import AiConversation, AiConversationMessage
+from app.models.ai import AiConversationMessage
 from app.models.user import ProficiencyLevel
 from app.schemas.ai import AiChatResponse, GrammarIssue, MessageResponse, PronunciationTip
 
@@ -64,7 +64,7 @@ class GeminiService:
         for msg in history[-10:]:  # Last 10 messages for context
             role = "user" if msg.is_user_message else "model"
             contents.append({"role": role, "parts": [msg.content]})
-        
+
         contents.append({"role": "user", "parts": [user_message]})
 
         try:
@@ -83,14 +83,22 @@ class GeminiService:
                 feedback_str = parts[1].split("</feedback>")[0].strip()
                 try:
                     feedback_json = json.loads(feedback_str)
-                    grammar_issues = [GrammarIssue(**i) for i in feedback_json.get("grammar_issues", [])]
-                    pronunciation_tips = [PronunciationTip(**i) for i in feedback_json.get("pronunciation_tips", [])]
+                    grammar_issues = [
+                        GrammarIssue(**i) for i in feedback_json.get("grammar_issues", [])
+                    ]
+                    pronunciation_tips = [
+                        PronunciationTip(**i) for i in feedback_json.get("pronunciation_tips", [])
+                    ]
                 except Exception:
                     logger.error("Failed to parse Gemini feedback JSON")
 
             # Save messages
-            user_msg_obj = AiConversationMessage(conversation_id=conversation_id, is_user_message=True, content=user_message)
-            ai_msg_obj = AiConversationMessage(conversation_id=conversation_id, is_user_message=False, content=reply_text)
+            user_msg_obj = AiConversationMessage(
+                conversation_id=conversation_id, is_user_message=True, content=user_message
+            )
+            ai_msg_obj = AiConversationMessage(
+                conversation_id=conversation_id, is_user_message=False, content=reply_text
+            )
             db.add_all([user_msg_obj, ai_msg_obj])
             await db.commit()
             await db.refresh(user_msg_obj)
@@ -100,7 +108,7 @@ class GeminiService:
                 user_message=MessageResponse.model_validate(user_msg_obj),
                 assistant_message=MessageResponse.model_validate(ai_msg_obj),
                 grammar_feedback=grammar_issues,
-                pronunciation_tips=pronunciation_tips
+                pronunciation_tips=pronunciation_tips,
             )
         except Exception as e:
             logger.error(f"Gemini API error: {e}")
@@ -109,13 +117,25 @@ class GeminiService:
     def _mock_response(self, conversation_id: UUID, user_message: str) -> AiChatResponse:
         """Fallback mock response."""
         return AiChatResponse(
-            user_message=MessageResponse(id=UUID(int=0), conversation_id=conversation_id, is_user_message=True, content=user_message),
-            assistant_message=MessageResponse(id=UUID(int=1), conversation_id=conversation_id, is_user_message=False, content="Bonjour! Je suis votre tutrice de français. (Hello! I am your French tutor.)"),
+            user_message=MessageResponse(
+                id=UUID(int=0),
+                conversation_id=conversation_id,
+                is_user_message=True,
+                content=user_message,
+            ),
+            assistant_message=MessageResponse(
+                id=UUID(int=1),
+                conversation_id=conversation_id,
+                is_user_message=False,
+                content="Bonjour! Je suis votre tutrice de français. (Hello! I am your French tutor.)",
+            ),
             grammar_feedback=[],
-            pronunciation_tips=[]
+            pronunciation_tips=[],
         )
 
-    async def generate_explanation(self, concept: str, user_input: str, base_language: str, level: str) -> str:
+    async def generate_explanation(
+        self, concept: str, user_input: str, base_language: str, level: str
+    ) -> str:
         """Generate a short explanation for a concept."""
         if not self.model:
             return f"Explication pour {concept} en {base_language}."

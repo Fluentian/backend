@@ -3,7 +3,7 @@
 import logging
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -28,7 +28,11 @@ async def list_courses(
     limit: int = 20,
 ) -> tuple[list[Course], int]:
     """List published courses with optional level filter."""
-    query = select(Course).where(Course.is_published.is_(True))
+    query = (
+        select(Course)
+        .where(Course.is_published.is_(True))
+        .order_by(case((Course.code.like("E2E_%"), 1), else_=0), Course.created_at.desc())
+    )
     count_query = select(func.count()).select_from(Course).where(Course.is_published.is_(True))
 
     if level:
@@ -61,6 +65,31 @@ async def create_course(db: AsyncSession, **kwargs: object) -> Course:
     await db.commit()
     await db.refresh(course)
     return course
+
+
+async def update_course(db: AsyncSession, course_id: UUID, **kwargs: object) -> Course:
+    """Update a course's metadata."""
+    result = await db.execute(select(Course).where(Course.id == course_id))
+    course = result.scalar_one_or_none()
+    if course is None:
+        raise NotFoundError("Course not found")
+
+    for key, value in kwargs.items():
+        if hasattr(course, key):
+            setattr(course, key, value)
+
+    await db.commit()
+    await db.refresh(course)
+    return course
+
+
+async def delete_course(db: AsyncSession, course_id: UUID) -> None:
+    """Delete a course."""
+    result = await db.execute(select(Course).where(Course.id == course_id))
+    course = result.scalar_one_or_none()
+    if course:
+        await db.delete(course)
+        await db.commit()
 
 
 # ── Units ───────────────────────────────────────────────
@@ -151,16 +180,26 @@ async def update_lesson(db: AsyncSession, lesson_id: UUID, **kwargs: object) -> 
     result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
     lesson = result.scalar_one_or_none()
     from app.core.exceptions import NotFoundError
+
     if lesson is None:
         raise NotFoundError("Lesson not found")
 
     for key, value in kwargs.items():
         if hasattr(lesson, key):
             setattr(lesson, key, value)
-    
+
     await db.commit()
     await db.refresh(lesson)
     return lesson
+
+
+async def delete_lesson(db: AsyncSession, lesson_id: UUID) -> None:
+    """Delete a lesson."""
+    result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    lesson = result.scalar_one_or_none()
+    if lesson:
+        await db.delete(lesson)
+        await db.commit()
 
 
 async def create_block(db: AsyncSession, lesson_id: UUID, **kwargs: object) -> LessonBlock:
@@ -186,13 +225,14 @@ async def update_block(db: AsyncSession, block_id: UUID, **kwargs: object) -> Le
     result = await db.execute(select(LessonBlock).where(LessonBlock.id == block_id))
     block = result.scalar_one_or_none()
     from app.core.exceptions import NotFoundError
+
     if block is None:
         raise NotFoundError("Block not found")
 
     for key, value in kwargs.items():
         if hasattr(block, key):
             setattr(block, key, value)
-    
+
     await db.commit()
     await db.refresh(block)
     return block
@@ -212,13 +252,14 @@ async def update_question(db: AsyncSession, question_id: UUID, **kwargs: object)
     result = await db.execute(select(Question).where(Question.id == question_id))
     question = result.scalar_one_or_none()
     from app.core.exceptions import NotFoundError
+
     if question is None:
         raise NotFoundError("Question not found")
 
     for key, value in kwargs.items():
         if hasattr(question, key):
             setattr(question, key, value)
-    
+
     await db.commit()
     await db.refresh(question)
     return question

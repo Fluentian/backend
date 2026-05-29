@@ -1,7 +1,7 @@
 """Shared FastAPI dependencies: auth, pagination, DB session."""
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 from uuid import UUID
 
 from fastapi import Depends, Query
@@ -59,14 +59,14 @@ async def get_current_active_user(
 
 def require_role(role: AppRole) -> Callable:
     """Factory that returns a dependency checking the user's role with hierarchy."""
-    
+
     # Define role hierarchy (higher value = more power)
     role_power = {
         AppRole.super_admin: 100,
         AppRole.admin: 80,
         AppRole.teacher: 60,
         AppRole.moderator: 40,
-        AppRole.student: 20
+        AppRole.student: 20,
     }
 
     async def _check_role(
@@ -74,9 +74,11 @@ def require_role(role: AppRole) -> Callable:
     ) -> User:
         user_power = role_power.get(user.role, 0)
         required_power = role_power.get(role, 0)
-        
+
         if user_power < required_power:
-            raise ForbiddenError(f"Insufficient permissions. Role '{role.value}' or higher required")
+            raise ForbiddenError(
+                f"Insufficient permissions. Role '{role.value}' or higher required"
+            )
         return user
 
     return _check_role

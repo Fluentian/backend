@@ -80,11 +80,13 @@ def register_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         errors = []
         for error in exc.errors():
-            errors.append({
-                "field": ".".join(str(loc) for loc in error.get("loc", [])),
-                "message": error.get("msg", ""),
-                "type": error.get("type", ""),
-            })
+            errors.append(
+                {
+                    "field": ".".join(str(loc) for loc in error.get("loc", [])),
+                    "message": error.get("msg", ""),
+                    "type": error.get("type", ""),
+                }
+            )
         return JSONResponse(
             status_code=422,
             content={
@@ -95,9 +97,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(SQLAlchemyError)
-    async def sqlalchemy_exception_handler(
-        _request: Request, exc: SQLAlchemyError
-    ) -> JSONResponse:
+    async def sqlalchemy_exception_handler(_request: Request, exc: SQLAlchemyError) -> JSONResponse:
         logger.error("Database error: %s", str(exc), exc_info=True)
         return JSONResponse(
             status_code=500,
