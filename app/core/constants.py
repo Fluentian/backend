@@ -32,4 +32,7 @@ MAX_EXPLANATION_WORDS = 150
 # ── Redis key prefixes ─────────────────────────────────
 REDIS_REFRESH_PREFIX = "refresh"
 REDIS_PWD_RESET_PREFIX = "pwd_reset"
+REDIS_OTP_SIGNUP_PREFIX = "otp_signup"
+REDIS_OTP_RESET_PREFIX = "otp_reset"
 PWD_RESET_TTL_SECONDS = 900  # 15 minutes
+OTP_TTL_SECONDS = 600  # 10 minutes

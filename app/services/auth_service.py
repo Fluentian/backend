@@ -1,6 +1,7 @@
 """Authentication service — registration, login, token management."""
 
 import logging
+import random
 import secrets
 from uuid import UUID
 
@@ -9,8 +10,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.constants import PWD_RESET_TTL_SECONDS, REDIS_PWD_RESET_PREFIX, REDIS_REFRESH_PREFIX
-from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError
+from app.core.constants import (
+    OTP_TTL_SECONDS,
+    PWD_RESET_TTL_SECONDS,
+    REDIS_OTP_RESET_PREFIX,
+    REDIS_OTP_SIGNUP_PREFIX,
+    REDIS_PWD_RESET_PREFIX,
+    REDIS_REFRESH_PREFIX,
+)
+from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -22,6 +30,7 @@ from app.core.security import (
 
 # from app.models.subscription import Subscription, SubscriptionTier
 from app.models.user import User, UserProfile, UserSettings
+from app.utils.email import send_otp_email
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +40,7 @@ _redis_client: redis.Redis | None = None
 async def _get_redis() -> redis.Redis:
     """Lazy-initialise the Redis client."""
     global _redis_client  # noqa: PLW0603
-    if _redis_client is None:
+    if _redis_client is None or settings.APP_ENV == "testing":
         _redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
     return _redis_client
 
@@ -42,8 +51,8 @@ async def register_user(
     email: str,
     password: str,
     ui_language_id: UUID | None = None,
-) -> tuple[User, str, str]:
-    """Register a new user, returning (user, access_token, refresh_token)."""
+) -> tuple[User, str | None]:
+    """Register a new user, generating an OTP and sending verification email."""
     # Check uniqueness
     existing = await db.execute(
         select(User).where((User.email == email) | (User.username == username))
@@ -58,6 +67,7 @@ async def register_user(
             email=email,
             password_hash=hash_password(password),
             ui_language_id=ui_language_id,
+            email_verified=False,
         )
         db.add(user)
         await db.flush()
@@ -71,15 +81,20 @@ async def register_user(
     await db.commit()
     await db.refresh(user)
 
-    # Generate tokens
-    token_data = {"sub": str(user.id)}
-    access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token(token_data)
+    # Generate 6-digit OTP
+    otp = f"{random.randint(100000, 999999)}"
+    
+    # Store OTP in Redis
+    r = await _get_redis()
+    key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
+    await r.set(key, otp, ex=OTP_TTL_SECONDS)
 
-    # Store refresh token hash in Redis
-    await _store_refresh_token(user.id, refresh_token)
+    # Send verification email
+    await send_otp_email(email, otp, "signup")
 
-    return user, access_token, refresh_token
+    if settings.DEBUG or settings.APP_ENV == "testing":
+        return user, otp
+    return user, None
 
 
 async def login_user(
@@ -96,6 +111,17 @@ async def login_user(
 
     if not user.is_active:
         raise UnauthorizedError("Account is deactivated")
+
+    if not user.email_verified:
+        # Generate 6-digit OTP
+        otp = f"{random.randint(100000, 999999)}"
+        r = await _get_redis()
+        key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
+        await r.set(key, otp, ex=OTP_TTL_SECONDS)
+        
+        # Send verification email
+        await send_otp_email(email, otp, "signup")
+        raise UnauthorizedError("Email not verified", detail=email)
 
     token_data = {"sub": str(user.id)}
     access_token = create_access_token(token_data)
@@ -176,8 +202,68 @@ async def logout_user(user_id: UUID, raw_refresh_token: str | None = None) -> No
                 raise
 
 
+async def verify_signup_otp(
+    db: AsyncSession,
+    email: str,
+    otp: str,
+) -> tuple[User, str, str]:
+    """Verify signup OTP, set email_verified to True, and generate JWT tokens."""
+    r = await _get_redis()
+    key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
+    stored_otp = await r.get(key)
+
+    if not stored_otp or stored_otp != otp:
+        raise ValidationError("Invalid or expired verification code")
+
+    await r.delete(key)
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise NotFoundError("User not found")
+
+    user.email_verified = True
+    await db.commit()
+    await db.refresh(user)
+
+    # Generate tokens since verification succeeded
+    token_data = {"sub": str(user.id)}
+    access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
+
+    # Store refresh token hash in Redis
+    await _store_refresh_token(user.id, refresh_token)
+
+    return user, access_token, refresh_token
+
+
+async def resend_signup_otp(
+    db: AsyncSession,
+    email: str,
+) -> None:
+    """Resend a new signup OTP to the user's email."""
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise NotFoundError("User not found")
+
+    if user.email_verified:
+        raise ConflictError("Email is already verified")
+
+    # Generate a new 6-digit OTP
+    otp = f"{random.randint(100000, 999999)}"
+    
+    # Store OTP in Redis
+    r = await _get_redis()
+    key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
+    await r.set(key, otp, ex=OTP_TTL_SECONDS)
+
+    # Send verification email
+    await send_otp_email(email, otp, "signup")
+
+
 async def request_password_reset(db: AsyncSession, email: str) -> str | None:
-    """Generate a password reset code. Returns code only in debug mode."""
+    """Generate a password reset 6-digit OTP. Returns OTP only in debug mode."""
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
@@ -185,40 +271,38 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
         # Don't reveal whether email exists
         return None
 
-    code = secrets.token_urlsafe(32)
+    otp = f"{random.randint(100000, 999999)}"
     r = await _get_redis()
-    key = f"{REDIS_PWD_RESET_PREFIX}:{user.id}"
-    await r.set(key, code, ex=PWD_RESET_TTL_SECONDS)
+    key = f"{REDIS_OTP_RESET_PREFIX}:{email}"
+    await r.set(key, otp, ex=OTP_TTL_SECONDS)
+
+    # Send reset email
+    await send_otp_email(email, otp, "reset_password")
 
     if settings.DEBUG:
-        return code
+        return otp
     return None
 
 
-async def reset_password(db: AsyncSession, token: str, new_password: str) -> None:
-    """Validate reset token and update the password."""
+async def reset_password(db: AsyncSession, email: str, token: str, new_password: str) -> None:
+    """Validate reset OTP and update the password."""
     r = await _get_redis()
+    key = f"{REDIS_OTP_RESET_PREFIX}:{email}"
+    stored_otp = await r.get(key)
 
-    # Search for the token across all users
-    found_user_id: UUID | None = None
-    async for key in r.scan_iter(match=f"{REDIS_PWD_RESET_PREFIX}:*"):
-        stored_code = await r.get(key)
-        if stored_code == token:
-            user_id_str = key.split(":")[-1]
-            found_user_id = UUID(user_id_str)
-            await r.delete(key)
-            break
+    if not stored_otp or stored_otp != token:
+        raise ValidationError("Invalid or expired reset code")
 
-    if found_user_id is None:
-        raise NotFoundError("Invalid or expired reset token")
+    await r.delete(key)
 
-    result = await db.execute(select(User).where(User.id == found_user_id))
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user is None:
         raise NotFoundError("User not found")
 
     user.password_hash = hash_password(new_password)
     await db.commit()
+
 
 
 # ── Internal helpers ────────────────────────────────────

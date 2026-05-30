@@ -14,13 +14,21 @@ async def test_get_me_unauthorized(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_get_me_success(client: AsyncClient):
     """Test /me with valid token."""
-    # Register and get token
+    # Register
     reg = await client.post("/api/v1/auth/register", json={
         "username": "meuser",
         "email": "me@example.com",
         "password": "password123"
     })
-    token = reg.json()["access_token"]
+    otp = reg.json()["detail"]
+    
+    # Verify email to get token
+    verify_res = await client.post("/api/v1/auth/verify-email", json={
+        "email": "me@example.com",
+        "otp": otp
+    })
+    assert verify_res.status_code == 200
+    token = verify_res.json()["access_token"]
     
     headers = {"Authorization": f"Bearer {token}"}
     response = await client.get("/api/v1/users/me", headers=headers)

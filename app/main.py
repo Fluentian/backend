@@ -149,6 +149,14 @@ async def lifespan(app: FastAPI):
                 text("ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS skills TEXT")
             )
 
+            # Users table
+            await conn.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE NOT NULL"
+                )
+            )
+
             # Seed French language
             await conn.execute(
                 text(

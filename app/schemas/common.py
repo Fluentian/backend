@@ -11,6 +11,7 @@ class MessageResponse(BaseModel):
     """Generic message response."""
 
     message: str
+    detail: str | None = None
 
 
 class PaginatedResponse(BaseModel, Generic[T]):

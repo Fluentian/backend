@@ -11,9 +11,11 @@ from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    ResendOtpRequest,
     ResetPasswordRequest,
     TokenResponse,
     UserBriefResponse,
+    VerifyOtpRequest,
 )
 from app.schemas.common import MessageResponse
 from app.services import auth_service
@@ -21,17 +23,34 @@ from app.services import auth_service
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Register a new user."""
-    user, access, refresh = await auth_service.register_user(
+    """Register a new user and initiate email verification."""
+    user, otp = await auth_service.register_user(
         db, req.username, req.email, req.password, req.ui_language_id
     )
+    res = {"message": "Verification code sent to your email"}
+    if otp:
+        res["detail"] = otp
+    return res
+
+
+@router.post("/verify-email", response_model=TokenResponse)
+async def verify_email(req: VerifyOtpRequest, db: AsyncSession = Depends(get_db)):
+    """Verify signup OTP and get access/refresh tokens."""
+    user, access, refresh = await auth_service.verify_signup_otp(db, req.email, req.otp)
     return {
         "access_token": access,
         "refresh_token": refresh,
         "user": UserBriefResponse.model_validate(user),
     }
+
+
+@router.post("/resend-otp", response_model=MessageResponse)
+async def resend_otp(req: ResendOtpRequest, db: AsyncSession = Depends(get_db)):
+    """Resend signup verification OTP."""
+    await auth_service.resend_signup_otp(db, req.email)
+    return {"message": "Verification code resent"}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -68,9 +87,9 @@ async def logout(user: User = Depends(get_current_user), authorization: str | No
 
 @router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    """Request a password reset."""
+    """Request a password reset OTP."""
     code = await auth_service.request_password_reset(db, req.email)
-    res = {"message": "Password reset email sent if account exists"}
+    res = {"message": "Password reset OTP sent if account exists"}
     if code:
         res["detail"] = code  # For MVP debug
     return res
@@ -78,6 +97,6 @@ async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends
 
 @router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(req: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
-    """Reset password with token."""
-    await auth_service.reset_password(db, req.token, req.new_password)
+    """Reset password with OTP."""
+    await auth_service.reset_password(db, req.email, req.token, req.new_password)
     return {"message": "Password updated successfully"}

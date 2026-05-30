@@ -88,9 +88,23 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
-class ResetPasswordRequest(BaseModel):
-    """Password reset with token."""
+class VerifyOtpRequest(BaseModel):
+    """Verify signup OTP request."""
 
+    email: EmailStr
+    otp: str
+
+
+class ResendOtpRequest(BaseModel):
+    """Resend signup OTP request."""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Password reset with token/OTP."""
+
+    email: EmailStr
     token: str
     new_password: str
 

@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_ENDPOINT_URL: str = ""
 
+    # ── SMTP Email ──────────────────────────────────────
+    MAIL_HOST: str = "smtp.gmail.com"
+    MAIL_PORT: int = 465
+    MAIL_USER: str = "anwarnasir0970@gmail.com"
+    MAIL_PASS: str = "iilqoctgpovbyqrv"
+    MAIL_FROM: str = 'Fluentian <no-reply@anwarnasir0970@gmail.com>'
+
     # ── App ─────────────────────────────────────────────
     APP_ENV: str = "development"
     DEBUG: bool = True
