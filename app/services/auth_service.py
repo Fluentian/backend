@@ -78,9 +78,6 @@ async def register_user(
 
         db.add_all([profile, settings_obj])
 
-    await db.commit()
-    await db.refresh(user)
-
     # Generate 6-digit OTP
     otp = f"{random.randint(100000, 999999)}"
     
@@ -90,7 +87,12 @@ async def register_user(
     await r.set(key, otp, ex=OTP_TTL_SECONDS)
 
     # Send verification email
-    await send_otp_email(email, otp, "signup")
+    email_sent = await send_otp_email(email, otp, "signup")
+    if not email_sent:
+        raise ValidationError("Failed to send verification email. Please check the email server configuration.")
+
+    await db.commit()
+    await db.refresh(user)
 
     if settings.DEBUG or settings.APP_ENV == "testing":
         return user, otp
@@ -120,7 +122,9 @@ async def login_user(
         await r.set(key, otp, ex=OTP_TTL_SECONDS)
         
         # Send verification email
-        await send_otp_email(email, otp, "signup")
+        email_sent = await send_otp_email(email, otp, "signup")
+        if not email_sent:
+            raise ValidationError("Failed to send verification email. Please check the email server configuration.")
         raise UnauthorizedError("Email not verified", detail=email)
 
     token_data = {"sub": str(user.id)}
@@ -259,7 +263,9 @@ async def resend_signup_otp(
     await r.set(key, otp, ex=OTP_TTL_SECONDS)
 
     # Send verification email
-    await send_otp_email(email, otp, "signup")
+    email_sent = await send_otp_email(email, otp, "signup")
+    if not email_sent:
+        raise ValidationError("Failed to send verification email. Please check the email server configuration.")
 
 
 async def request_password_reset(db: AsyncSession, email: str) -> str | None:
@@ -277,7 +283,9 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
     await r.set(key, otp, ex=OTP_TTL_SECONDS)
 
     # Send reset email
-    await send_otp_email(email, otp, "reset_password")
+    email_sent = await send_otp_email(email, otp, "reset_password")
+    if not email_sent:
+        raise ValidationError("Failed to send password reset email. Please check the email server configuration.")
 
     if settings.DEBUG:
         return otp
