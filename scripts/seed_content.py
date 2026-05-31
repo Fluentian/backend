@@ -20,6 +20,7 @@ from app.models.content import (
     Course,
     Language,
     Lesson,
+    LessonBlock,
     LessonKind,
     PathUnit,
     Question,
@@ -170,6 +171,223 @@ async def seed_content():
                 db.add(lesson)
                 await db.flush()
 
+                # Add lesson blocks based on lesson kind
+                print(f"  Creating blocks for: {lesson_title}")
+                if lesson_kind == LessonKind.dialogue:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "In this lesson, you'll learn basic French greetings used in everyday conversations. Pay attention to the formal vs informal use."
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Bonjour",
+                                "meaning": "Hello / Good day",
+                                "audio_url": "https://example.com/audio/bonjour.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            3,
+                            {
+                                "word": "Bonsoir",
+                                "meaning": "Good evening",
+                                "audio_url": "https://example.com/audio/bonsoir.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            4,
+                            {
+                                "word": "Bonne nuit",
+                                "meaning": "Good night",
+                                "audio_url": "https://example.com/audio/bonnenuit.mp3",
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.vocabulary:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Learn essential vocabulary for introducing yourself in French."
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Je m'appelle",
+                                "meaning": "My name is",
+                                "audio_url": "https://example.com/audio/jemappelle.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            3,
+                            {
+                                "word": "Enchanté(e)",
+                                "meaning": "Nice to meet you",
+                                "audio_url": "https://example.com/audio/enchante.mp3",
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.grammar_explainer:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Understanding responses to 'How are you?' in French. Common polite responses include 'Ça va bien, merci' and 'Très bien, et toi?'"
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Ça va?",
+                                "meaning": "How are you? (informal)",
+                                "audio_url": "https://example.com/audio/cavat.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            3,
+                            {
+                                "word": "Ça va bien",
+                                "meaning": "I'm doing well",
+                                "audio_url": "https://example.com/audio/cavabien.mp3",
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.pronunciation:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Master French pronunciation with these key greetings. French pronunciation emphasizes clear syllables and silent letters."
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Bonjour [bon-zhoor]",
+                                "meaning": "The j is pronounced like 'zh' in 'measure'",
+                                "audio_url": "https://example.com/audio/bonjour_slow.mp3",
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.listening:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "In this listening exercise, you'll hear introductions in French. Try to identify greetings and names."
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.reading:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Read this short dialogue between two French speakers meeting for the first time."
+                            },
+                        ),
+                        (
+                            "explanation",
+                            2,
+                            {
+                                "text": "Marie: Bonjour! Je m'appelle Marie.\nJean: Enchanté! Moi, je m'appelle Jean. Ça va?"
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.writing:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Practice writing a simple greeting email in French using the vocabulary you've learned."
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.speaking:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Record yourself speaking these French greetings. Focus on clear pronunciation and natural rhythm."
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.cultural_bridge:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "In France, greetings are important for politeness. Use 'Bonjour' when entering shops and 'Bonsoir' after 6 PM. Always greet before asking questions!"
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.roleplay_simulation:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "You'll now practice a realistic conversation. Pretend you're meeting a French person at a café."
+                            },
+                        ),
+                    ]
+                elif lesson_kind == LessonKind.exam_drill:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "This exam-style section tests all aspects of greetings: listening, reading, writing, and speaking."
+                            },
+                        ),
+                    ]
+                else:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {"text": f"Lesson content for {lesson_title}"},
+                        )
+                    ]
+
+                for block_kind, block_seq, block_payload in blocks:
+                    result = await db.execute(
+                        select(LessonBlock).where(
+                            (LessonBlock.lesson_id == lesson.id)
+                            & (LessonBlock.sequence_no == block_seq)
+                        )
+                    )
+                    existing_block = result.scalar_one_or_none()
+                    if not existing_block:
+                        block = LessonBlock(
+                            lesson_id=lesson.id,
+                            block_kind=block_kind,
+                            sequence_no=block_seq,
+                            block_payload=block_payload,
+                        )
+                        db.add(block)
+
                 # Create diverse questions for this lesson - ALL QUESTION KINDS
                 print(f"  Creating questions for: {lesson_title}")
                 questions_data = [
@@ -178,16 +396,17 @@ async def seed_content():
                         QuestionKind.mcq_single,
                         {
                             "text": "What is the correct greeting in the morning?",
-                            "options": [
+                            "mcqOptions": [
                                 "Bonsoir",
                                 "Bonjour",
                                 "Bonne nuit",
                                 "Au revoir",
                             ],
+                            "mcqCorrectAnswer": "Bonjour",
                         },
                         {
                             "correct_index": 1,
-                            "explanation": "Bonjour is used as a greeting during day.",
+                            "explanation": "Bonjour is used as a greeting during the day.",
                         },
                     ),
                     (
@@ -195,7 +414,7 @@ async def seed_content():
                         QuestionKind.mcq_multi,
                         {
                             "text": "Which of these are valid greetings? (Select all)",
-                            "options": ["Bonjour", "Salut", "Bonsoir", "Merci"],
+                            "mcqOptions": ["Bonjour", "Salut", "Bonsoir", "Merci"],
                         },
                         {
                             "correct_indices": [0, 1, 2],
@@ -207,21 +426,30 @@ async def seed_content():
                         QuestionKind.fill_blank,
                         {
                             "text": "Je m'appelle ____.",
-                            "hint": "Name placeholder",
+                            "hint": "Any French name works as an example",
                         },
-                        {"accepted_answers": ["Marie", "Jean", "Sophie", "Pierre"]},
+                        {
+                            "accepted_answers": [
+                                "Marie",
+                                "Jean",
+                                "Sophie",
+                                "Pierre",
+                                "André",
+                                "Claire",
+                            ]
+                        },
                     ),
                     (
                         4,
                         QuestionKind.reorder,
                         {
-                            "text": "Arrange in correct order: you nice Hello are to",
-                            "words": ["Hello", "nice", "to", "you", "are"],
-                            "correct_order": ["Hello", "you", "are", "nice", "to"],
+                            "text": "Arrange in correct order",
+                            "words": ["Hello", "are", "you", "how"],
+                            "hint": "Standard English greeting order",
                         },
                         {
-                            "correct_order": ["Hello", "you", "are", "nice", "to"],
-                            "explanation": "Correct sentence order.",
+                            "correct_order": ["Hello", "how", "are", "you"],
+                            "explanation": "The correct order forms 'Hello, how are you?'",
                         },
                     ),
                     (
@@ -251,14 +479,15 @@ async def seed_content():
                             "accepted_answers": [
                                 "Bonjour, ça va?",
                                 "Salut mon ami",
-                                "Hello, how are you",
+                                "Enchanté!",
+                                "Bonjour!",
                             ]
                         },
                     ),
                     (
                         7,
                         QuestionKind.translation,
-                        {"text": 'Translate: "How are you?" to French'},
+                        {"text": "Translate to French: 'How are you?'"},
                         {
                             "accepted_answers": [
                                 "Comment allez-vous?",
@@ -271,11 +500,11 @@ async def seed_content():
                         8,
                         QuestionKind.listening_comprehension,
                         {
-                            "text": "Listen to the audio and answer: What is the greeting?",
-                            "audio_url": "/media/greeting_audio.mp3",
+                            "text": "Listen and select what greeting you hear",
+                            "audio_url": "https://example.com/audio/greeting_1.mp3",
                         },
                         {
-                            "accepted_answers": ["Bonjour", "Good morning"],
+                            "accepted_answers": ["Bonjour", "bonjour"],
                             "explanation": "The speaker says 'Bonjour'",
                         },
                     ),
@@ -284,26 +513,26 @@ async def seed_content():
                         QuestionKind.dictation,
                         {
                             "text": "Listen and type what you hear",
-                            "audio_url": "/media/dictation_bonjour.mp3",
-                            "hint": "French greeting",
+                            "audio_url": "https://example.com/audio/dictation_1.mp3",
+                            "hint": "A common French greeting",
                         },
                         {
-                            "accepted_answers": ["Bonjour"],
-                            "explanation": "Bonjour is a common French greeting.",
+                            "accepted_answers": ["Bonjour", "bonjour"],
+                            "explanation": "You should write 'Bonjour'",
                         },
                     ),
                     (
                         10,
                         QuestionKind.speech_record,
                         {
-                            "text": "Record yourself saying: Bonjour, je m'appelle...",
-                            "instruction": "Speak clearly and naturally",
+                            "text": "Record yourself saying: 'Bonjour, je m'appelle [your name]'",
+                            "instruction": "Speak clearly and at natural pace",
                         },
                         {
                             "evaluation_criteria": [
                                 "Pronunciation clarity",
                                 "Accent accuracy",
-                                "Fluency",
+                                "Fluency and confidence",
                             ]
                         },
                     ),
@@ -366,6 +595,215 @@ async def seed_content():
                 db.add(lesson)
                 await db.flush()
 
+                # Add lesson blocks based on lesson kind
+                print(f"  Creating blocks for: {lesson_title}")
+                if "Numbers" in lesson_title:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Master French numbers 1-10. These are essential for telling time, prices, and quantities."
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Un",
+                                "meaning": "One",
+                                "audio_url": "https://example.com/audio/un.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            3,
+                            {
+                                "word": "Deux",
+                                "meaning": "Two",
+                                "audio_url": "https://example.com/audio/deux.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            4,
+                            {
+                                "word": "Trois",
+                                "meaning": "Three",
+                                "audio_url": "https://example.com/audio/trois.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            5,
+                            {
+                                "word": "Dix",
+                                "meaning": "Ten",
+                                "audio_url": "https://example.com/audio/dix.mp3",
+                            },
+                        ),
+                    ]
+                elif "Colors" in lesson_title:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Learn French color vocabulary. Colors are essential adjectives in French."
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Rouge",
+                                "meaning": "Red",
+                                "audio_url": "https://example.com/audio/rouge.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            3,
+                            {
+                                "word": "Bleu",
+                                "meaning": "Blue",
+                                "audio_url": "https://example.com/audio/bleu.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            4,
+                            {
+                                "word": "Vert",
+                                "meaning": "Green",
+                                "audio_url": "https://example.com/audio/vert.mp3",
+                            },
+                        ),
+                    ]
+                elif "Days" in lesson_title:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Days of the week are fundamental for scheduling and time expressions in French."
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Lundi",
+                                "meaning": "Monday",
+                                "audio_url": "https://example.com/audio/lundi.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            3,
+                            {
+                                "word": "Jeudi",
+                                "meaning": "Thursday",
+                                "audio_url": "https://example.com/audio/jeudi.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            4,
+                            {
+                                "word": "Samedi",
+                                "meaning": "Saturday",
+                                "audio_url": "https://example.com/audio/samedi.mp3",
+                            },
+                        ),
+                    ]
+                elif "Time" in lesson_title:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Time expressions in French. Learn how to tell time and discuss schedules."
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            2,
+                            {
+                                "word": "Heure",
+                                "meaning": "Hour/Time",
+                                "audio_url": "https://example.com/audio/heure.mp3",
+                            },
+                        ),
+                        (
+                            "vocabulary",
+                            3,
+                            {
+                                "word": "Minute",
+                                "meaning": "Minute",
+                                "audio_url": "https://example.com/audio/minute.mp3",
+                            },
+                        ),
+                    ]
+                elif "Reading" in lesson_title:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Read this story about numbers in French context."
+                            },
+                        ),
+                        (
+                            "explanation",
+                            2,
+                            {
+                                "text": "Il y a un chat noir et trois souris. Les souris sont petites."
+                            },
+                        ),
+                    ]
+                elif "Listening" in lesson_title:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Listen to color descriptions and try to identify which color is mentioned."
+                            },
+                        ),
+                    ]
+                elif "Speaking" in lesson_title:
+                    blocks = [
+                        (
+                            "explanation",
+                            1,
+                            {
+                                "text": "Practice speaking: describe colors you see around you in French."
+                            },
+                        ),
+                    ]
+                else:
+                    blocks = [
+                        ("explanation", 1, {"text": f"Content for {lesson_title}"})
+                    ]
+
+                for block_kind, block_seq, block_payload in blocks:
+                    result = await db.execute(
+                        select(LessonBlock).where(
+                            (LessonBlock.lesson_id == lesson.id)
+                            & (LessonBlock.sequence_no == block_seq)
+                        )
+                    )
+                    existing_block = result.scalar_one_or_none()
+                    if not existing_block:
+                        block = LessonBlock(
+                            lesson_id=lesson.id,
+                            block_kind=block_kind,
+                            sequence_no=block_seq,
+                            block_payload=block_payload,
+                        )
+                        db.add(block)
+
                 # Create questions
                 print(f"  Creating questions for: {lesson_title}")
                 questions_data = [
@@ -374,7 +812,8 @@ async def seed_content():
                         QuestionKind.mcq_single,
                         {
                             "text": "What is 5 in French?",
-                            "options": ["trois", "cinq", "sept", "neuf"],
+                            "mcqOptions": ["trois", "cinq", "sept", "neuf"],
+                            "mcqCorrectAnswer": "cinq",
                         },
                         {"correct_index": 1, "explanation": "Cinq means five."},
                     ),
@@ -383,7 +822,7 @@ async def seed_content():
                         QuestionKind.mcq_multi,
                         {
                             "text": "Which are numbers? (Select all)",
-                            "options": ["un", "rouge", "deux", "bleu", "trois"],
+                            "mcqOptions": ["un", "rouge", "deux", "bleu", "trois"],
                         },
                         {
                             "correct_indices": [0, 2, 4],
@@ -408,28 +847,36 @@ async def seed_content():
                                 {"num": "1", "fr": "un"},
                                 {"num": "2", "fr": "deux"},
                                 {"num": "3", "fr": "trois"},
+                                {"num": "5", "fr": "cinq"},
                             ],
                         },
-                        {"matches": {"1": "un", "2": "deux", "3": "trois"}},
+                        {
+                            "matches": {
+                                "1": "un",
+                                "2": "deux",
+                                "3": "trois",
+                                "5": "cinq",
+                            }
+                        },
                     ),
                     (
                         5,
                         QuestionKind.reorder,
                         {
-                            "text": "Order: red blue green",
-                            "words": ["red", "blue", "green"],
-                            "correct_order": ["red", "blue", "green"],
+                            "text": "Arrange days in order",
+                            "words": ["Jeudi", "Lundi", "Mercredi"],
+                            "hint": "Week order",
                         },
                         {
-                            "correct_order": ["red", "blue", "green"],
-                            "explanation": "Rainbow order",
+                            "correct_order": ["Lundi", "Mercredi", "Jeudi"],
+                            "explanation": "Days in chronological order",
                         },
                     ),
                     (
                         6,
                         QuestionKind.translation,
-                        {"text": "Translate: 'Monday' to French"},
-                        {"accepted_answers": ["Lundi"]},
+                        {"text": "Translate to French: 'Monday'"},
+                        {"accepted_answers": ["Lundi", "lundi"]},
                     ),
                     (
                         7,
@@ -439,6 +886,7 @@ async def seed_content():
                             "accepted_answers": [
                                 "rouge, bleu, vert",
                                 "red, blue, green",
+                                "Rouge, bleu, vert",
                             ]
                         },
                     ),
@@ -447,27 +895,32 @@ async def seed_content():
                         QuestionKind.listening_comprehension,
                         {
                             "text": "What number do you hear?",
-                            "audio_url": "/media/number_audio.mp3",
+                            "audio_url": "https://example.com/audio/number_5.mp3",
                         },
-                        {"accepted_answers": ["cinq", "5"]},
+                        {"accepted_answers": ["cinq", "5", "Cinq"]},
                     ),
                     (
                         9,
                         QuestionKind.dictation,
                         {
-                            "text": "Type what you hear",
-                            "audio_url": "/media/dictation_lundi.mp3",
+                            "text": "Listen and type what you hear",
+                            "audio_url": "https://example.com/audio/lundi_dictation.mp3",
                         },
-                        {"accepted_answers": ["Lundi"]},
+                        {"accepted_answers": ["Lundi", "lundi"]},
                     ),
                     (
                         10,
                         QuestionKind.speech_record,
                         {
-                            "text": "Say the French numbers 1-5",
-                            "instruction": "Speak clearly",
+                            "text": "Say the numbers 1-5 in French",
+                            "instruction": "Speak clearly and slowly",
                         },
-                        {"evaluation_criteria": ["Accuracy", "Pronunciation"]},
+                        {
+                            "evaluation_criteria": [
+                                "Number accuracy",
+                                "Pronunciation clarity",
+                            ]
+                        },
                     ),
                 ]
 
@@ -530,19 +983,37 @@ async def seed_content():
         print("✓ Content seeding completed successfully!")
         print("=" * 70)
         print("\nSummary:")
-        print("  • Language: French")
+        print("  • Language: French (Français)")
         print("  • Courses: 2 (Beginner A1-A2, Intermediate B1-B2)")
         print(f"  • Units: {len(beginner_units) + len(intermediate_units)}")
-        print("\n  Lesson Kinds Included (11 types):")
-        print("    - dialogue, vocabulary, grammar_explainer, pronunciation")
-        print("    - listening, reading, writing, speaking")
-        print("    - cultural_bridge, roleplay_simulation, exam_drill")
-        print("\n  Question Types Included (10 types):")
-        print("    - mcq_single, mcq_multi, fill_blank, reorder, match_pairs")
-        print("    - short_text, translation, listening_comprehension")
-        print("    - dictation, speech_record")
-        print("\n  • Each lesson includes 3-10 diverse questions")
-        print("  • Each question type has 3+ examples")
+        print("\n  Lesson Kinds (11 types) with Content Blocks:")
+        print("    ✓ dialogue, vocabulary, grammar_explainer, pronunciation")
+        print("    ✓ listening, reading, writing, speaking")
+        print("    ✓ cultural_bridge, roleplay_simulation, exam_drill")
+        print("\n  Content Blocks Created:")
+        print("    • explanation: Lesson context and instructions")
+        print("    • vocabulary: Key words with audio pronunciation")
+        print("    • 18 lessons in Beginner Units 1-2 (Unit 1: 11, Unit 2: 7)")
+        print("\n  Question Types (10 types) per Lesson:")
+        print("    ✓ mcq_single: Single choice with options")
+        print("    ✓ mcq_multi: Multiple choice (select all)")
+        print("    ✓ fill_blank: Fill in missing words with hints")
+        print("    ✓ reorder: Arrange words in correct sequence")
+        print("    ✓ match_pairs: Match French to English")
+        print("    ✓ short_text: Free text response")
+        print("    ✓ translation: Translate sentences")
+        print("    ✓ listening_comprehension: Audio-based questions")
+        print("    ✓ dictation: Type what you hear")
+        print("    ✓ speech_record: Record and evaluate speech")
+        print("\n  Total Content Items:")
+        print("    • 18 Lessons with full blocks")
+        print("    • 180+ Questions (10 types per lesson)")
+        print("    • 40+ Content blocks (explanation, vocabulary, etc)")
+        print("\n  Frontend Integration Ready:")
+        print("    • Blocks serve lesson content (blocks in lesson_detail_screen)")
+        print("    • Questions have proper MCQ fields (mcqOptions, mcqCorrectAnswer)")
+        print("    • Audio URLs included for pronunciation/listening")
+        print("    • Grading payloads configured for auto-evaluation")
         print("=" * 70)
 
 
