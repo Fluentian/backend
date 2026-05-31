@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # ── Database ────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/fluentian"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://postgres:password@localhost:5432/fluentian"
+    )
 
     # ── Redis ───────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -31,17 +33,24 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_ENDPOINT_URL: str = ""
 
-    # ── SMTP Email ──────────────────────────────────────
+    # ── Email (Brevo Transactional API) ─────────────────
+    BREVO_API_KEY: str = ""
+    MAIL_FROM_EMAIL: str = "no-reply@fluentian.binovatechnologies.com"
+    MAIL_FROM_NAME: str = "Fluentian"
+
+    # ── Legacy SMTP Email (deprecated, kept for backward compatibility) ──
     MAIL_HOST: str = "smtp.gmail.com"
     MAIL_PORT: int = 465
-    MAIL_USER: str = "anwarnasir0970@gmail.com"
-    MAIL_PASS: str = "iilqoctgpovbyqrv"
-    MAIL_FROM: str = 'Fluentian <no-reply@anwarnasir0970@gmail.com>'
+    MAIL_USER: str = ""
+    MAIL_PASS: str = ""
+    MAIL_FROM: str = "Fluentian <no-reply@example.com>"
 
     # ── App ─────────────────────────────────────────────
     APP_ENV: str = "development"
     DEBUG: bool = True
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:8080"
+    ALLOWED_ORIGINS: str = (
+        "http://localhost:3000,http://localhost:3001,http://localhost:8080"
+    )
 
     @property
     def is_production(self) -> bool:

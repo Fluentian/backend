@@ -1,55 +1,74 @@
-"""Email utility for sending emails via SMTP."""
+"""Email utility for sending emails via Brevo Transactional Email API."""
 
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 import logging
-import asyncio
 from datetime import datetime
+
+import httpx
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Brevo API endpoint
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
+
 async def send_email(subject: str, recipient: str, html_content: str) -> bool:
-    """Send an email using SMTP asynchronously via run_in_executor."""
+    """Send an email using Brevo Transactional Email API asynchronously."""
     if settings.APP_ENV == "testing":
         logger.info(f"Skipping actual email send to {recipient} in testing environment")
         return True
 
-    def _send():
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = settings.MAIL_FROM
-        msg["To"] = recipient
-        
-        part = MIMEText(html_content, "html")
-        msg.attach(part)
-        
-        try:
-            # Connect to SMTP server
-            if settings.MAIL_PORT == 465:
-                server = smtplib.SMTP_SSL(settings.MAIL_HOST, settings.MAIL_PORT, timeout=10)
-            else:
-                server = smtplib.SMTP(settings.MAIL_HOST, settings.MAIL_PORT, timeout=10)
-                server.starttls()
-                
-            server.login(settings.MAIL_USER, settings.MAIL_PASS)
-            server.sendmail(settings.MAIL_USER, recipient, msg.as_string())
-            server.quit()
-            logger.info(f"Email sent successfully to {recipient}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send email to {recipient}: {e}")
-            if settings.DEBUG:
-                print(f"SMTP Error: {e}")
-            return False
+    if not settings.BREVO_API_KEY:
+        logger.error("BREVO_API_KEY is not configured")
+        return False
 
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _send)
+    payload = {
+        "sender": {
+            "name": settings.MAIL_FROM_NAME,
+            "email": settings.MAIL_FROM_EMAIL,
+        },
+        "to": [
+            {
+                "email": recipient,
+                "name": recipient,
+            }
+        ],
+        "subject": subject,
+        "htmlContent": html_content,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                BREVO_API_URL,
+                json=payload,
+                headers={
+                    "api-key": settings.BREVO_API_KEY,
+                    "Content-Type": "application/json",
+                },
+            )
+
+            if response.status_code in (200, 201):
+                logger.info(f"Email sent successfully to {recipient}")
+                return True
+            else:
+                logger.error(
+                    f"Failed to send email to {recipient}: "
+                    f"status={response.status_code}, response={response.text}"
+                )
+                return False
+
+    except httpx.RequestError as e:
+        logger.error(f"Request error while sending email to {recipient}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error while sending email to {recipient}: {e}")
+        return False
 
 
 async def send_otp_email(to_email: str, otp: str, purpose: str) -> bool:
-    """Send premium OTP email for signup or password reset."""
+    """Send OTP email for signup or password reset via Brevo."""
     if purpose == "signup":
         subject = "Verify your Fluentian Account"
         title = "Verify your email address"
@@ -60,7 +79,7 @@ async def send_otp_email(to_email: str, otp: str, purpose: str) -> bool:
         title = "Reset your password"
         subtitle = "We received a request to reset your password. Use the code below to set a new password."
         btn_text = "Reset Code"
-        
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
