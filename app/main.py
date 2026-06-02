@@ -10,6 +10,7 @@ from app.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.middleware import setup_middleware
 from app.routers import (
+    admin,
     analytics,
     auth,
     content,
@@ -138,7 +139,9 @@ async def lifespan(app: FastAPI):
                 )
             )
             await conn.execute(
-                text("ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS education TEXT")
+                text(
+                    "ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS education TEXT"
+                )
             )
             await conn.execute(
                 text(
@@ -146,7 +149,9 @@ async def lifespan(app: FastAPI):
                 )
             )
             await conn.execute(
-                text("ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS skills TEXT")
+                text(
+                    "ALTER TABLE opportunity_applications ADD COLUMN IF NOT EXISTS skills TEXT"
+                )
             )
 
             # Users table
@@ -158,9 +163,7 @@ async def lifespan(app: FastAPI):
             )
 
             # Seed French language
-            await conn.execute(
-                text(
-                    """
+            await conn.execute(text("""
                     INSERT INTO languages (
                         id,
                         iso_code,
@@ -180,9 +183,7 @@ async def lifespan(app: FastAPI):
                         NOW()
                     )
                     ON CONFLICT (iso_code) DO NOTHING
-                    """
-                )
-            )
+                    """))
 
         with open("startup_debug.txt", "a") as f:
             f.write("Seed command executed\n")
@@ -220,6 +221,7 @@ register_exception_handlers(app)
 # Include routers
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 app.include_router(students.router, prefix="/api/v1")
 app.include_router(content.router, prefix="/api/v1")
 app.include_router(progress.router, prefix="/api/v1")
