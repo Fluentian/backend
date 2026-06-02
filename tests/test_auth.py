@@ -90,3 +90,42 @@ async def test_login_success(client: AsyncClient):
     })
     assert response.status_code == 200
     assert "access_token" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_change_password_success(client: AsyncClient):
+    """Authenticated user can change password with current password."""
+    reg = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "pwduser",
+            "email": "pwd@example.com",
+            "password": "password123",
+        },
+    )
+    otp = reg.json()["detail"]
+    verify = await client.post(
+        "/api/v1/auth/verify-email",
+        json={"email": "pwd@example.com", "otp": otp},
+    )
+    token = verify.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    change = await client.post(
+        "/api/v1/auth/change-password",
+        headers=headers,
+        json={"current_password": "password123", "new_password": "newpassword456"},
+    )
+    assert change.status_code == 200
+
+    old_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "pwd@example.com", "password": "password123"},
+    )
+    assert old_login.status_code == 401
+
+    new_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "pwd@example.com", "password": "newpassword456"},
+    )
+    assert new_login.status_code == 200

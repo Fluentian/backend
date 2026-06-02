@@ -116,3 +116,22 @@ class ResetPasswordRequest(BaseModel):
             msg = f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
             raise ValueError(msg)
         return v
+
+
+class ChangePasswordRequest(BaseModel):
+    """Change password while logged in."""
+
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Enforce minimum password strength."""
+        if len(v) < MIN_PASSWORD_LENGTH:
+            msg = f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
+            raise ValueError(msg)
+        if len(v) > MAX_PASSWORD_LENGTH:
+            msg = f"Password must be at most {MAX_PASSWORD_LENGTH} characters"
+            raise ValueError(msg)
+        return v

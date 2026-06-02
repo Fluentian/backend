@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models.user import AppRole, User, UserProfile, UserSettings
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,14 @@ async def get_user_by_id(db: AsyncSession, user_id: UUID) -> User:
 
 async def update_user(db: AsyncSession, user: User, **kwargs: object) -> User:
     """Update user fields."""
+    if kwargs.get("username") is not None:
+        new_username = str(kwargs["username"])
+        existing = await db.execute(
+            select(User).where(User.username == new_username, User.id != user.id)
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise ConflictError("Username is already taken")
+
     for key, value in kwargs.items():
         if value is not None and hasattr(user, key):
             setattr(user, key, value)

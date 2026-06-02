@@ -292,6 +292,23 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
     return None
 
 
+async def change_password(
+    db: AsyncSession,
+    user: User,
+    current_password: str,
+    new_password: str,
+) -> None:
+    """Verify current password and set a new one."""
+    if not verify_password(current_password, user.password_hash):
+        raise ValidationError("Current password is incorrect")
+
+    if verify_password(new_password, user.password_hash):
+        raise ValidationError("New password must be different from your current password")
+
+    user.password_hash = hash_password(new_password)
+    await db.commit()
+
+
 async def reset_password(db: AsyncSession, email: str, token: str, new_password: str) -> None:
     """Validate reset OTP and update the password."""
     r = await _get_redis()
