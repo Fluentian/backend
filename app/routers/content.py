@@ -104,10 +104,10 @@ async def list_lessons(
 @router.patch(
     "/lessons/{lesson_id}",
     response_model=LessonResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def update_lesson(lesson_id: UUID, req: dict, db: AsyncSession = Depends(get_db)):
-    """Update a lesson's basic metadata (Admin only)."""
+    """Update a lesson's basic metadata (Teacher+)."""
     return await content_service.update_lesson(db, lesson_id, **req)
 
 
@@ -115,7 +115,7 @@ async def update_lesson(lesson_id: UUID, req: dict, db: AsyncSession = Depends(g
 
 
 @router.post(
-    "/courses", response_model=CourseResponse, dependencies=[Depends(require_role(AppRole.admin))]
+    "/courses", response_model=CourseResponse, dependencies=[Depends(require_role(AppRole.teacher))]
 )
 async def create_course(req: CreateCourseRequest, db: AsyncSession = Depends(get_db)):
     """Create a new course (Admin only)."""
@@ -125,14 +125,14 @@ async def create_course(req: CreateCourseRequest, db: AsyncSession = Depends(get
 @router.patch(
     "/courses/{course_id}",
     response_model=CourseResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def update_course(course_id: UUID, req: dict, db: AsyncSession = Depends(get_db)):
     """Update a course (Admin only)."""
     return await content_service.update_course(db, course_id, **req)
 
 
-@router.delete("/courses/{course_id}", dependencies=[Depends(require_role(AppRole.admin))])
+@router.delete("/courses/{course_id}", dependencies=[Depends(require_role(AppRole.teacher))])
 async def delete_course(course_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete a course (Admin only)."""
     await content_service.delete_course(db, course_id)
@@ -142,7 +142,7 @@ async def delete_course(course_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.post(
     "/courses/{course_id}/units",
     response_model=UnitResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def create_unit(course_id: UUID, req: CreateUnitRequest, db: AsyncSession = Depends(get_db)):
     """Create a new unit (Admin only)."""
@@ -152,7 +152,7 @@ async def create_unit(course_id: UUID, req: CreateUnitRequest, db: AsyncSession 
 @router.post(
     "/units/{unit_id}/lessons",
     response_model=LessonResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def create_lesson(
     unit_id: UUID, req: CreateLessonRequest, db: AsyncSession = Depends(get_db)
@@ -161,7 +161,7 @@ async def create_lesson(
     return await content_service.create_lesson(db, unit_id, **req.model_dump())
 
 
-@router.delete("/lessons/{lesson_id}", dependencies=[Depends(require_role(AppRole.admin))])
+@router.delete("/lessons/{lesson_id}", dependencies=[Depends(require_role(AppRole.teacher))])
 async def delete_lesson(lesson_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete a lesson (Admin only)."""
     await content_service.delete_lesson(db, lesson_id)
@@ -171,7 +171,7 @@ async def delete_lesson(lesson_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.post(
     "/lessons/{lesson_id}/blocks",
     response_model=BlockResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def add_block(lesson_id: UUID, req: CreateBlockRequest, db: AsyncSession = Depends(get_db)):
     """Add a new block to a lesson (Admin only)."""
@@ -181,7 +181,7 @@ async def add_block(lesson_id: UUID, req: CreateBlockRequest, db: AsyncSession =
 @router.post(
     "/lessons/{lesson_id}/questions",
     response_model=QuestionResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def add_question(
     lesson_id: UUID, req: CreateQuestionRequest, db: AsyncSession = Depends(get_db)
@@ -193,14 +193,14 @@ async def add_question(
 @router.patch(
     "/blocks/{block_id}",
     response_model=BlockResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def update_block(block_id: UUID, req: dict, db: AsyncSession = Depends(get_db)):
     """Update a block (Admin only)."""
     return await content_service.update_block(db, block_id, **req)
 
 
-@router.delete("/blocks/{block_id}", dependencies=[Depends(require_role(AppRole.admin))])
+@router.delete("/blocks/{block_id}", dependencies=[Depends(require_role(AppRole.teacher))])
 async def delete_block(block_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete a block (Admin only)."""
     await content_service.delete_block(db, block_id)
@@ -210,14 +210,14 @@ async def delete_block(block_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.patch(
     "/questions/{question_id}",
     response_model=QuestionResponse,
-    dependencies=[Depends(require_role(AppRole.admin))],
+    dependencies=[Depends(require_role(AppRole.teacher))],
 )
 async def update_question(question_id: UUID, req: dict, db: AsyncSession = Depends(get_db)):
     """Update a question (Admin only)."""
     return await content_service.update_question(db, question_id, **req)
 
 
-@router.delete("/questions/{question_id}", dependencies=[Depends(require_role(AppRole.admin))])
+@router.delete("/questions/{question_id}", dependencies=[Depends(require_role(AppRole.teacher))])
 async def delete_question(question_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete a question (Admin only)."""
     await content_service.delete_question(db, question_id)

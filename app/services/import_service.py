@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.content import Course, Language, Lesson, LessonBlock, PathUnit, Question
+from app.utils.content_payloads import normalize_block, normalize_question
 
 logger = logging.getLogger(__name__)
 
@@ -118,22 +119,26 @@ async def import_curriculum_csv(db: AsyncSession, csv_file: io.StringIO):
         try:
             payload = json.loads(row.get("payload", "{}"))
             if row["level"] == "3":  # Block
+                raw_kind = row.get("kind", "text")
+                kind, norm_payload = normalize_block(raw_kind, payload)
                 block = LessonBlock(
                     lesson_id=lesson_id,
-                    block_kind=row.get("kind", "text"),
+                    block_kind=kind,
                     sequence_no=int(row.get("sequence_no", 1)),
-                    block_payload=payload,
+                    block_payload=norm_payload,
                 )
                 db.add(block)
                 import_results["blocks"] += 1
             else:  # Question
                 grading = json.loads(row.get("grading_payload", "{}"))
+                qkind = row.get("kind", "mcq_single")
+                norm_prompt, norm_grading = normalize_question(qkind, payload, grading)
                 question = Question(
                     lesson_id=lesson_id,
-                    question_kind=row.get("kind", "mcq_single"),
+                    question_kind=qkind,
                     sequence_no=int(row.get("sequence_no", 1)),
-                    prompt_payload=payload,
-                    grading_payload=grading,
+                    prompt_payload=norm_prompt,
+                    grading_payload=norm_grading,
                 )
                 db.add(question)
                 import_results["questions"] += 1

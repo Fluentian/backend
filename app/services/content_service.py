@@ -14,6 +14,12 @@ from app.models.content import (
     PathUnit,
     Question,
 )
+from app.utils.content_payloads import (
+    normalize_block,
+    normalize_block_model,
+    normalize_question,
+    normalize_question_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +155,10 @@ async def get_lesson(db: AsyncSession, lesson_id: UUID) -> Lesson:
     lesson = result.scalar_one_or_none()
     if lesson is None:
         raise NotFoundError("Lesson not found")
+    for block in lesson.blocks:
+        normalize_block_model(block)
+    for question in lesson.questions:
+        normalize_question_model(question)
     return lesson
 
 
@@ -157,7 +167,10 @@ async def get_lesson_questions(db: AsyncSession, lesson_id: UUID) -> list[Questi
     result = await db.execute(
         select(Question).where(Question.lesson_id == lesson_id).order_by(Question.sequence_no)
     )
-    return list(result.scalars().all())
+    questions = list(result.scalars().all())
+    for question in questions:
+        normalize_question_model(question)
+    return questions
 
 
 async def create_lesson(db: AsyncSession, unit_id: UUID, **kwargs: object) -> Lesson:
@@ -204,7 +217,14 @@ async def delete_lesson(db: AsyncSession, lesson_id: UUID) -> None:
 
 async def create_block(db: AsyncSession, lesson_id: UUID, **kwargs: object) -> LessonBlock:
     """Add a content block to a lesson."""
-    block = LessonBlock(lesson_id=lesson_id, **kwargs)  # type: ignore[arg-type]
+    data = dict(kwargs)
+    kind, payload = normalize_block(
+        str(data.get("block_kind", "rich_text")),
+        data.get("block_payload") or {},
+    )
+    data["block_kind"] = kind
+    data["block_payload"] = payload
+    block = LessonBlock(lesson_id=lesson_id, **data)  # type: ignore[arg-type]
     db.add(block)
     await db.commit()
     await db.refresh(block)
@@ -213,7 +233,16 @@ async def create_block(db: AsyncSession, lesson_id: UUID, **kwargs: object) -> L
 
 async def create_question(db: AsyncSession, lesson_id: UUID, **kwargs: object) -> Question:
     """Add a question to a lesson."""
-    question = Question(lesson_id=lesson_id, **kwargs)  # type: ignore[arg-type]
+    data = dict(kwargs)
+    qkind = str(data.get("question_kind", "mcq_single"))
+    prompt, grading = normalize_question(
+        qkind,
+        data.get("prompt_payload") or {},
+        data.get("grading_payload") or {},
+    )
+    data["prompt_payload"] = prompt
+    data["grading_payload"] = grading
+    question = Question(lesson_id=lesson_id, **data)  # type: ignore[arg-type]
     db.add(question)
     await db.commit()
     await db.refresh(question)
@@ -232,6 +261,11 @@ async def update_block(db: AsyncSession, block_id: UUID, **kwargs: object) -> Le
     for key, value in kwargs.items():
         if hasattr(block, key):
             setattr(block, key, value)
+
+    if "block_kind" in kwargs or "block_payload" in kwargs:
+        kind, payload = normalize_block(block.block_kind, block.block_payload)
+        block.block_kind = kind
+        block.block_payload = payload
 
     await db.commit()
     await db.refresh(block)
@@ -259,6 +293,17 @@ async def update_question(db: AsyncSession, question_id: UUID, **kwargs: object)
     for key, value in kwargs.items():
         if hasattr(question, key):
             setattr(question, key, value)
+
+    qkind = (
+        question.question_kind.value
+        if hasattr(question.question_kind, "value")
+        else str(question.question_kind)
+    )
+    prompt, grading = normalize_question(
+        qkind, question.prompt_payload, question.grading_payload
+    )
+    question.prompt_payload = prompt
+    question.grading_payload = grading
 
     await db.commit()
     await db.refresh(question)

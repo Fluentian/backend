@@ -11,7 +11,7 @@ from app.services import import_service
 router = APIRouter(prefix="/content/import", tags=["content"])
 
 
-@router.post("", dependencies=[Depends(require_role(AppRole.admin))])
+@router.post("", dependencies=[Depends(require_role(AppRole.teacher))])
 async def upload_curriculum_csv(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     """Import courses, units, lessons, and questions from a CSV file."""
     if not file.filename.endswith(".csv"):

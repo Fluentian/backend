@@ -15,10 +15,11 @@ from app.core.constants import (
     XP_MULTIPLIER_PERFECT,
 )
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models.content import CourseEnrollment, Lesson
+from app.models.content import CourseEnrollment, Lesson, Question
 from app.models.progress import UserLessonProgress, UserUnitProgress
 from app.models.user import User
 from app.schemas.progress import AnswerPayload
+from app.utils.content_payloads import grade_answer, normalize_question_model
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,36 @@ async def complete_lesson(
     lesson = result.scalar_one_or_none()
     if not lesson:
         raise NotFoundError("Lesson not found")
+
+    questions_result = await db.execute(
+        select(Question).where(Question.lesson_id == lesson_id)
+    )
+    questions = list(questions_result.scalars().all())
+    for question in questions:
+        normalize_question_model(question)
+    question_by_id = {q.id: q for q in questions}
+
+    if answers and question_by_id:
+        graded: list[AnswerPayload] = []
+        correct_count = 0
+        for submitted in answers:
+            question = question_by_id.get(submitted.question_id)
+            is_correct = (
+                grade_answer(question, submitted.answer)
+                if question is not None
+                else submitted.is_correct
+            )
+            if is_correct:
+                correct_count += 1
+            graded.append(
+                AnswerPayload(
+                    question_id=submitted.question_id,
+                    answer=submitted.answer,
+                    is_correct=is_correct,
+                )
+            )
+        answers = graded
+        score = correct_count / len(answers)
 
     if score >= 1.0:
         multiplier = XP_MULTIPLIER_PERFECT
