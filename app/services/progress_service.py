@@ -178,6 +178,8 @@ async def get_user_unit_progress(
 
 async def get_user_stats(db: AsyncSession, user: User) -> dict:
     """Aggregate stats for the current user."""
+    now = datetime.now(UTC)
+    week_start = now - timedelta(days=7)
     lessons_completed = (
         await db.execute(
             select(func.count())
@@ -192,6 +194,18 @@ async def get_user_stats(db: AsyncSession, user: User) -> dict:
             .where(UserUnitProgress.user_id == user.id, UserUnitProgress.is_completed.is_(True))
         )
     ).scalar() or 0
+    weekly_xp = (
+        await db.execute(
+            select(func.coalesce(func.sum(Lesson.xp_reward), 0))
+            .select_from(UserLessonProgress)
+            .join(Lesson, UserLessonProgress.lesson_id == Lesson.id)
+            .where(
+                UserLessonProgress.user_id == user.id,
+                UserLessonProgress.completed.is_(True),
+                UserLessonProgress.completed_at >= week_start,
+            )
+        )
+    ).scalar() or 0
     return {
         "total_xp": user.xp_total,
         "streak_days": user.streak_days,
@@ -199,7 +213,7 @@ async def get_user_stats(db: AsyncSession, user: User) -> dict:
         "units_completed": units_completed,
         "hearts": user.hearts,
         "current_level": user.current_level.value,
-        "weekly_xp": user.xp_total,
+        "weekly_xp": int(weekly_xp),
     }
 
 

@@ -151,10 +151,19 @@ class NotificationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    user_id: UUID
     title: str
     body: str
     is_read: bool
     created_at: datetime
+
+
+class CreateNotificationRequest(BaseModel):
+    """Create a direct or broadcast notification."""
+
+    user_id: UUID | str
+    title: str
+    body: str
 
 
 # ── Opportunities ───────────────────────────────────────
