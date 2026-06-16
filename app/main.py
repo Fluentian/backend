@@ -15,6 +15,7 @@ from app.routers import (
     auth,
     content,
     import_content,
+    learning,
     notifications,
     opportunities,
     progress,
@@ -162,6 +163,68 @@ async def lifespan(app: FastAPI):
                 )
             )
 
+            # User settings table
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS learning_reminder_enabled "
+                    "BOOLEAN DEFAULT TRUE NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS reminder_time VARCHAR(5) DEFAULT '08:00' NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS phonetic_hints_enabled "
+                    "BOOLEAN DEFAULT TRUE NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS speaking_exercises_enabled "
+                    "BOOLEAN DEFAULT TRUE NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS high_contrast_enabled "
+                    "BOOLEAN DEFAULT FALSE NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS reduce_animations_enabled "
+                    "BOOLEAN DEFAULT FALSE NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS haptic_feedback_enabled "
+                    "BOOLEAN DEFAULT TRUE NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS tts_speed DOUBLE PRECISION DEFAULT 1.0 NOT NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_settings "
+                    "ADD COLUMN IF NOT EXISTS font_scale INTEGER DEFAULT 1 NOT NULL"
+                )
+            )
+
             # Seed French language
             await conn.execute(text("""
                     INSERT INTO languages (
@@ -229,6 +292,7 @@ app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(opportunities.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(import_content.router, prefix="/api/v1")
+app.include_router(learning.router, prefix="/api/v1")
 
 
 @app.get("/health")
