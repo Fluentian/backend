@@ -83,6 +83,14 @@ async def get_my_stats(
     return await progress_service.get_user_stats(db, user)
 
 
+@router.get("/me/enrollments", response_model=list[EnrollmentResponse])
+async def get_my_enrollments(
+    user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)
+):
+    """Get current user's active course enrollments."""
+    return await progress_service.get_user_enrollments(db, user.id)
+
+
 @router.get("/users/{user_id}/lessons", response_model=PaginatedResponse[LessonProgressResponse])
 async def get_user_lessons(
     user_id: UUID,

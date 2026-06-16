@@ -74,6 +74,15 @@ class OnboardingUpdateRequest(BaseModel):
     offline_mode_enabled: bool | None = None
     autoplay_audio: bool | None = None
     sound_enabled: bool | None = None
+    learning_reminder_enabled: bool | None = None
+    reminder_time: str | None = None
+    phonetic_hints_enabled: bool | None = None
+    speaking_exercises_enabled: bool | None = None
+    high_contrast_enabled: bool | None = None
+    reduce_animations_enabled: bool | None = None
+    haptic_feedback_enabled: bool | None = None
+    tts_speed: float | None = None
+    font_scale: int | None = None
 
 
 # ── Profile ─────────────────────────────────────────────
@@ -115,6 +124,15 @@ class SettingsResponse(BaseModel):
     offline_mode_enabled: bool
     autoplay_audio: bool
     sound_enabled: bool
+    learning_reminder_enabled: bool = True
+    reminder_time: str = "08:00"
+    phonetic_hints_enabled: bool = True
+    speaking_exercises_enabled: bool = True
+    high_contrast_enabled: bool = False
+    reduce_animations_enabled: bool = False
+    haptic_feedback_enabled: bool = True
+    tts_speed: float = 1.0
+    font_scale: int = 1
     updated_at: datetime | None = None
 
 
@@ -125,6 +143,15 @@ class UpdateSettingsRequest(BaseModel):
     offline_mode_enabled: bool | None = None
     autoplay_audio: bool | None = None
     sound_enabled: bool | None = None
+    learning_reminder_enabled: bool | None = None
+    reminder_time: str | None = None
+    phonetic_hints_enabled: bool | None = None
+    speaking_exercises_enabled: bool | None = None
+    high_contrast_enabled: bool | None = None
+    reduce_animations_enabled: bool | None = None
+    haptic_feedback_enabled: bool | None = None
+    tts_speed: float | None = None
+    font_scale: int | None = None
 
 
 # ── Hearts ──────────────────────────────────────────────

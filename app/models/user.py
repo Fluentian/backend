@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -126,6 +126,19 @@ class UserSettings(Base):
     offline_mode_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     autoplay_audio: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     sound_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    learning_reminder_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    reminder_time: Mapped[str] = mapped_column(String(5), default="08:00", nullable=False)
+    phonetic_hints_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    speaking_exercises_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    high_contrast_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reduce_animations_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    haptic_feedback_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    tts_speed: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    font_scale: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True
     )

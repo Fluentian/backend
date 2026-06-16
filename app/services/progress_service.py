@@ -14,8 +14,8 @@ from app.core.constants import (
     XP_MULTIPLIER_PASS,
     XP_MULTIPLIER_PERFECT,
 )
-from app.core.exceptions import ConflictError, NotFoundError
-from app.models.content import CourseEnrollment, Lesson, Question
+from app.core.exceptions import NotFoundError
+from app.models.content import Course, CourseEnrollment, Lesson, Question
 from app.models.progress import UserLessonProgress, UserUnitProgress
 from app.models.user import User
 from app.schemas.progress import AnswerPayload
@@ -219,18 +219,40 @@ async def get_user_stats(db: AsyncSession, user: User) -> dict:
 
 async def enroll_in_course(db: AsyncSession, user_id: UUID, course_id: UUID) -> CourseEnrollment:
     """Enroll a user in a course."""
+    course_result = await db.execute(
+        select(Course).where(Course.id == course_id, Course.is_published.is_(True))
+    )
+    if course_result.scalar_one_or_none() is None:
+        raise NotFoundError("Published course not found")
+
     existing = await db.execute(
         select(CourseEnrollment).where(
             CourseEnrollment.user_id == user_id, CourseEnrollment.course_id == course_id
         )
     )
-    if existing.scalar_one_or_none():
-        raise ConflictError("Already enrolled in this course")
+    existing_enrollment = existing.scalar_one_or_none()
+    if existing_enrollment:
+        if not existing_enrollment.is_active:
+            existing_enrollment.is_active = True
+            await db.commit()
+            await db.refresh(existing_enrollment)
+        return existing_enrollment
+
     enrollment = CourseEnrollment(user_id=user_id, course_id=course_id)
     db.add(enrollment)
     await db.commit()
     await db.refresh(enrollment)
     return enrollment
+
+
+async def get_user_enrollments(db: AsyncSession, user_id: UUID) -> list[CourseEnrollment]:
+    """Return active course enrollments for a user."""
+    result = await db.execute(
+        select(CourseEnrollment)
+        .where(CourseEnrollment.user_id == user_id, CourseEnrollment.is_active.is_(True))
+        .order_by(CourseEnrollment.enrolled_at.desc())
+    )
+    return list(result.scalars().all())
 
 
 async def _check_unit_completion(db: AsyncSession, user_id: UUID, unit_id: UUID) -> bool:

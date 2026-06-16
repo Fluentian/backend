@@ -15,6 +15,7 @@ from app.models.content import (  # noqa: F401
     TtsVoice,
     UnitKind,
 )
+from app.models.learning import LessonFeedback, PlacementAttempt  # noqa: F401
 from app.models.progress import UserLessonProgress, UserUnitProgress  # noqa: F401
 from app.models.user import (  # noqa: F401
     AppRole,
@@ -35,6 +36,8 @@ __all__ = [
     "UserSettings",
     "Notification",
     "OpportunityBoard",
+    "LessonFeedback",
+    "PlacementAttempt",
     "Language",
     "MediaAsset",
     "TtsVoice",

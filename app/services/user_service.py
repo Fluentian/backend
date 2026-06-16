@@ -68,7 +68,8 @@ async def update_profile(db: AsyncSession, user_id: UUID, **kwargs: object) -> U
     result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if profile is None:
-        raise NotFoundError("Profile not found")
+        profile = UserProfile(user_id=user_id)
+        db.add(profile)
 
     for key, value in kwargs.items():
         if value is not None and hasattr(profile, key):
@@ -83,7 +84,8 @@ async def update_settings(db: AsyncSession, user_id: UUID, **kwargs: object) -> 
     result = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
     user_settings = result.scalar_one_or_none()
     if user_settings is None:
-        raise NotFoundError("Settings not found")
+        user_settings = UserSettings(user_id=user_id)
+        db.add(user_settings)
 
     for key, value in kwargs.items():
         if value is not None and hasattr(user_settings, key):
@@ -117,7 +119,7 @@ async def update_user_onboarding(db: AsyncSession, user: User, **kwargs: object)
                 xp = int(xp)
             except (ValueError, TypeError):
                 xp = 20
-        # Casual (10 XP -> 5 min), Regular (20 XP -> 10 min), Serious (50 XP -> 20 min), Intense (100 XP -> 40 min)
+        # Map goal intensity presets to approximate study minutes.
         if xp <= 10:
             data["daily_goal_minutes"] = 5
         elif xp <= 20:
@@ -173,6 +175,15 @@ async def update_user_onboarding(db: AsyncSession, user: User, **kwargs: object)
         "offline_mode_enabled",
         "autoplay_audio",
         "sound_enabled",
+        "learning_reminder_enabled",
+        "reminder_time",
+        "phonetic_hints_enabled",
+        "speaking_exercises_enabled",
+        "high_contrast_enabled",
+        "reduce_animations_enabled",
+        "haptic_feedback_enabled",
+        "tts_speed",
+        "font_scale",
     ]
     for field in settings_fields:
         if field in data and data[field] is not None:
