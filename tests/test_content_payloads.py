@@ -49,3 +49,33 @@ def test_grade_open_answer():
     )
     assert grade_answer(question, "bonjour") is True
     assert grade_answer(question, "wrong") is False
+
+
+def test_grade_reorder_answer():
+    from types import SimpleNamespace
+
+    question = SimpleNamespace(
+        question_kind="reorder",
+        prompt_payload={"question": "Build the sentence"},
+        grading_payload={"correct_order": ["Je", "voudrais", "un", "the"]},
+    )
+    assert grade_answer(question, "Je voudrais un the") is True
+    assert grade_answer(question, "Je un voudrais the") is False
+
+
+def test_grade_match_pairs_answer():
+    from types import SimpleNamespace
+
+    question = SimpleNamespace(
+        question_kind="match_pairs",
+        prompt_payload={
+            "question": "Match",
+            "pairs": [
+                {"left": "Bonjour", "right": "Hello"},
+                {"left": "Merci", "right": "Thank you"},
+            ],
+        },
+        grading_payload={},
+    )
+    assert grade_answer(question, "Bonjour -> Hello\nMerci -> Thank you") is True
+    assert grade_answer(question, "Bonjour -> Thank you\nMerci -> Hello") is False

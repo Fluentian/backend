@@ -147,6 +147,35 @@ def _answer_matches(user_answer: Any, accepted: list[str]) -> bool:
     return any(normalized == a.strip().casefold() for a in accepted if a)
 
 
+def _clean_text(value: Any) -> str:
+    return " ".join(
+        str(value)
+        .replace(".", "")
+        .replace(",", "")
+        .replace("!", "")
+        .replace("?", "")
+        .strip()
+        .casefold()
+        .split()
+    )
+
+
+def _parse_match_answer(value: Any) -> dict[str, str]:
+    if isinstance(value, dict):
+        return {str(k).strip(): str(v).strip() for k, v in value.items()}
+    if not isinstance(value, str):
+        return {}
+
+    matches: dict[str, str] = {}
+    for line in value.splitlines():
+        if "->" not in line:
+            continue
+        left, right = line.split("->", 1)
+        if left.strip() and right.strip():
+            matches[left.strip()] = right.strip()
+    return matches
+
+
 def grade_answer(question: Question, user_answer: Any) -> bool:
     """Grade a single answer against stored question payloads."""
     kind = (
@@ -173,6 +202,40 @@ def grade_answer(question: Question, user_answer: Any) -> bool:
         if correct is not None:
             return _answer_matches(user_answer, [str(correct)])
         return False
+
+    if kind == "reorder":
+        correct_order = grading.get("correct_order")
+        if isinstance(correct_order, list):
+            expected = " ".join(str(part).strip() for part in correct_order if str(part).strip())
+            return _clean_text(user_answer) == _clean_text(expected)
+        if grading.get("correct_answer"):
+            return _clean_text(user_answer) == _clean_text(grading["correct_answer"])
+        return False
+
+    if kind == "match_pairs":
+        expected: dict[str, str] = {}
+        pairs = prompt.get("pairs")
+        if isinstance(pairs, list):
+            for pair in pairs:
+                if isinstance(pair, dict):
+                    left = pair.get("left") or pair.get("fr") or pair.get("target")
+                    right = pair.get("right") or pair.get("en") or pair.get("base")
+                    if left and right:
+                        expected[str(left).strip()] = str(right).strip()
+        matches = grading.get("matches")
+        if isinstance(matches, dict):
+            expected.update({str(k).strip(): str(v).strip() for k, v in matches.items()})
+        submitted = _parse_match_answer(user_answer)
+        return bool(expected) and submitted == expected
+
+    if kind == "speech_record":
+        if isinstance(user_answer, (int, float)):
+            return float(user_answer) >= float(grading.get("min_score", 80))
+        if isinstance(user_answer, str):
+            digits = "".join(ch for ch in user_answer if ch.isdigit() or ch == ".")
+            if digits:
+                return float(digits) >= float(grading.get("min_score", 80))
+        return bool(grading.get("allow_manual_pass", False))
 
     accepted = _str_list(grading.get("accepted_answers"))
     if not accepted and grading.get("correct_answer"):

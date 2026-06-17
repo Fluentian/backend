@@ -3,6 +3,7 @@
 import logging
 import random
 import secrets
+import time
 from uuid import UUID
 
 import redis.asyncio as redis
@@ -35,6 +36,7 @@ from app.utils.email import send_otp_email
 logger = logging.getLogger(__name__)
 
 _redis_client: redis.Redis | None = None
+_memory_store: dict[str, tuple[str, float | None]] = {}
 
 
 async def _get_redis() -> redis.Redis:
@@ -43,6 +45,86 @@ async def _get_redis() -> redis.Redis:
     if _redis_client is None or settings.APP_ENV == "testing":
         _redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
     return _redis_client
+
+
+def _allow_memory_store() -> bool:
+    return settings.DEBUG or settings.APP_ENV in {"development", "testing"}
+
+
+def _memory_set(key: str, value: str, ex: int | None = None) -> None:
+    expires_at = time.time() + ex if ex else None
+    _memory_store[key] = (value, expires_at)
+
+
+def _memory_get(key: str) -> str | None:
+    item = _memory_store.get(key)
+    if item is None:
+        return None
+    value, expires_at = item
+    if expires_at is not None and expires_at < time.time():
+        _memory_store.pop(key, None)
+        return None
+    return value
+
+
+async def _cache_set(key: str, value: str, ex: int | None = None) -> None:
+    try:
+        r = await _get_redis()
+        await r.set(key, value, ex=ex)
+    except Exception as e:
+        if not _allow_memory_store():
+            raise
+        logger.warning("Redis unavailable, using in-memory auth cache: %s", e)
+        _memory_set(key, value, ex)
+
+
+async def _cache_get(key: str) -> str | None:
+    try:
+        r = await _get_redis()
+        value = await r.get(key)
+        return value if value is None else str(value)
+    except Exception as e:
+        if not _allow_memory_store():
+            raise
+        logger.warning("Redis unavailable, using in-memory auth cache: %s", e)
+        return _memory_get(key)
+
+
+async def _cache_exists(key: str) -> bool:
+    try:
+        r = await _get_redis()
+        return bool(await r.exists(key))
+    except Exception as e:
+        if not _allow_memory_store():
+            raise
+        logger.warning("Redis unavailable, using in-memory auth cache: %s", e)
+        return _memory_get(key) is not None
+
+
+async def _cache_delete(key: str) -> None:
+    try:
+        r = await _get_redis()
+        await r.delete(key)
+    except Exception as e:
+        if not _allow_memory_store():
+            raise
+        logger.warning("Redis unavailable, using in-memory auth cache: %s", e)
+        _memory_store.pop(key, None)
+
+
+async def _cache_delete_pattern(pattern: str) -> None:
+    try:
+        r = await _get_redis()
+        async for key in r.scan_iter(match=pattern):
+            await r.delete(key)
+    except Exception as e:
+        if not _allow_memory_store():
+            raise
+        logger.warning("Redis unavailable, using in-memory auth cache: %s", e)
+        prefix = pattern.removesuffix("*")
+        for key in list(_memory_store):
+            if key.startswith(prefix):
+                _memory_store.pop(key, None)
 
 
 async def register_user(
@@ -82,19 +164,18 @@ async def register_user(
     otp = f"{random.randint(100000, 999999)}"
     
     # Store OTP in Redis
-    r = await _get_redis()
     key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
-    await r.set(key, otp, ex=OTP_TTL_SECONDS)
+    await _cache_set(key, otp, ex=OTP_TTL_SECONDS)
 
     # Send verification email
     email_sent = await send_otp_email(email, otp, "signup")
-    if not email_sent:
+    if not email_sent and not _allow_memory_store():
         raise ValidationError("Failed to send verification email. Please check the email server configuration.")
 
     await db.commit()
     await db.refresh(user)
 
-    if settings.DEBUG or settings.APP_ENV == "testing":
+    if _allow_memory_store():
         return user, otp
     return user, None
 
@@ -117,13 +198,12 @@ async def login_user(
     if not user.email_verified:
         # Generate 6-digit OTP
         otp = f"{random.randint(100000, 999999)}"
-        r = await _get_redis()
         key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
-        await r.set(key, otp, ex=OTP_TTL_SECONDS)
+        await _cache_set(key, otp, ex=OTP_TTL_SECONDS)
         
         # Send verification email
         email_sent = await send_otp_email(email, otp, "signup")
-        if not email_sent:
+        if not email_sent and not _allow_memory_store():
             raise ValidationError("Failed to send verification email. Please check the email server configuration.")
         raise UnauthorizedError("Email not verified", detail=email)
 
@@ -149,14 +229,13 @@ async def refresh_tokens(
 
     # Verify token exists in Redis
     try:
-        r = await _get_redis()
         token_hash = hash_token(raw_refresh_token)
         key = f"{REDIS_REFRESH_PREFIX}:{user_id}:{token_hash}"
-        if not await r.exists(key):
+        if not await _cache_exists(key):
             raise UnauthorizedError("Refresh token has been revoked")
 
         # Delete old token
-        await r.delete(key)
+        await _cache_delete(key)
     except Exception as e:
         if settings.DEBUG:
             logger.warning(f"Redis unavailable, skipping revocation check: {e}")
@@ -183,10 +262,9 @@ async def logout_user(user_id: UUID, raw_refresh_token: str | None = None) -> No
     """Revoke a refresh token in Redis. Skips if Redis is unavailable in dev."""
     if raw_refresh_token:
         try:
-            r = await _get_redis()
             token_hash = hash_token(raw_refresh_token)
             key = f"{REDIS_REFRESH_PREFIX}:{user_id}:{token_hash}"
-            await r.delete(key)
+            await _cache_delete(key)
         except Exception as e:
             if settings.DEBUG:
                 logger.warning(f"Redis unavailable, skipping token revocation: {e}")
@@ -195,10 +273,8 @@ async def logout_user(user_id: UUID, raw_refresh_token: str | None = None) -> No
     else:
         # Delete all refresh tokens for user
         try:
-            r = await _get_redis()
             pattern = f"{REDIS_REFRESH_PREFIX}:{user_id}:*"
-            async for key in r.scan_iter(match=pattern):
-                await r.delete(key)
+            await _cache_delete_pattern(pattern)
         except Exception as e:
             if settings.DEBUG:
                 logger.warning(f"Redis unavailable, skipping bulk token revocation: {e}")
@@ -212,14 +288,13 @@ async def verify_signup_otp(
     otp: str,
 ) -> tuple[User, str, str]:
     """Verify signup OTP, set email_verified to True, and generate JWT tokens."""
-    r = await _get_redis()
     key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
-    stored_otp = await r.get(key)
+    stored_otp = await _cache_get(key)
 
     if not stored_otp or stored_otp != otp:
         raise ValidationError("Invalid or expired verification code")
 
-    await r.delete(key)
+    await _cache_delete(key)
 
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
@@ -258,13 +333,12 @@ async def resend_signup_otp(
     otp = f"{random.randint(100000, 999999)}"
     
     # Store OTP in Redis
-    r = await _get_redis()
     key = f"{REDIS_OTP_SIGNUP_PREFIX}:{email}"
-    await r.set(key, otp, ex=OTP_TTL_SECONDS)
+    await _cache_set(key, otp, ex=OTP_TTL_SECONDS)
 
     # Send verification email
     email_sent = await send_otp_email(email, otp, "signup")
-    if not email_sent:
+    if not email_sent and not _allow_memory_store():
         raise ValidationError("Failed to send verification email. Please check the email server configuration.")
 
 
@@ -278,16 +352,15 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
         return None
 
     otp = f"{random.randint(100000, 999999)}"
-    r = await _get_redis()
     key = f"{REDIS_OTP_RESET_PREFIX}:{email}"
-    await r.set(key, otp, ex=OTP_TTL_SECONDS)
+    await _cache_set(key, otp, ex=OTP_TTL_SECONDS)
 
     # Send reset email
     email_sent = await send_otp_email(email, otp, "reset_password")
-    if not email_sent:
+    if not email_sent and not _allow_memory_store():
         raise ValidationError("Failed to send password reset email. Please check the email server configuration.")
 
-    if settings.DEBUG:
+    if _allow_memory_store():
         return otp
     return None
 
@@ -311,14 +384,13 @@ async def change_password(
 
 async def reset_password(db: AsyncSession, email: str, token: str, new_password: str) -> None:
     """Validate reset OTP and update the password."""
-    r = await _get_redis()
     key = f"{REDIS_OTP_RESET_PREFIX}:{email}"
-    stored_otp = await r.get(key)
+    stored_otp = await _cache_get(key)
 
     if not stored_otp or stored_otp != token:
         raise ValidationError("Invalid or expired reset code")
 
-    await r.delete(key)
+    await _cache_delete(key)
 
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
@@ -336,11 +408,10 @@ async def reset_password(db: AsyncSession, email: str, token: str, new_password:
 async def _store_refresh_token(user_id: UUID, raw_token: str) -> None:
     """Store refresh token hash in Redis with TTL. Skips if Redis is unavailable in dev."""
     try:
-        r = await _get_redis()
         token_hash = hash_token(raw_token)
         key = f"{REDIS_REFRESH_PREFIX}:{user_id}:{token_hash}"
         ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
-        await r.set(key, "1", ex=ttl)
+        await _cache_set(key, "1", ex=ttl)
     except Exception as e:
         if settings.DEBUG:
             logger.warning(f"Redis unavailable, skipping token storage: {e}")
