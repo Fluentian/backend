@@ -62,6 +62,13 @@ class QuestionKind(str, enum.Enum):
     dictation = "dictation"
 
 
+class CultureStoryMediaType(str, enum.Enum):
+    """Supported media types for culture exploration stories."""
+
+    image = "image"
+    video = "video"
+
+
 # ── Models ──────────────────────────────────────────────
 
 
@@ -260,3 +267,22 @@ class Question(UUIDMixin, TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<Question id={self.id} kind={self.question_kind.value} seq={self.sequence_no}>"
+
+
+class CultureStory(UUIDMixin, TimestampMixin, Base):
+    """A culture exploration story with media and translatable French text."""
+
+    __tablename__ = "culture_stories"
+
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    location: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str] = mapped_column(String(100), nullable=False)
+    sequence_no: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    media: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list)  # type: ignore[assignment]
+    paragraphs: Mapped[list[list[dict]]] = mapped_column(
+        JSONB, nullable=False, default=list
+    )  # type: ignore[assignment]
+
+    def __repr__(self) -> str:
+        return f"<CultureStory id={self.id} title={self.title!r}>"

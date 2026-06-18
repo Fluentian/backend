@@ -4,6 +4,8 @@ from app.models.base import Base  # noqa: F401
 from app.models.content import (  # noqa: F401
     Course,
     CourseEnrollment,
+    CultureStory,
+    CultureStoryMediaType,
     Language,
     Lesson,
     LessonBlock,
@@ -43,6 +45,8 @@ __all__ = [
     "TtsVoice",
     "Course",
     "CourseEnrollment",
+    "CultureStory",
+    "CultureStoryMediaType",
     "PathUnit",
     "Lesson",
     "LessonBlock",

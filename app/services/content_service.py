@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.models.content import (
     Course,
+    CultureStory,
     Lesson,
     LessonBlock,
     PathUnit,
@@ -22,6 +23,17 @@ from app.utils.content_payloads import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _jsonable(value: object) -> object:
+    """Convert Pydantic models and nested containers into JSON-compatible data."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump()  # type: ignore[attr-defined]
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    return value
 
 
 # ── Courses ─────────────────────────────────────────────
@@ -316,4 +328,92 @@ async def delete_question(db: AsyncSession, question_id: UUID) -> None:
     question = result.scalar_one_or_none()
     if question:
         await db.delete(question)
+        await db.commit()
+
+
+# Culture stories
+
+
+async def list_culture_stories(
+    db: AsyncSession,
+    include_unpublished: bool = False,
+    offset: int = 0,
+    limit: int = 20,
+) -> tuple[list[CultureStory], int]:
+    """List culture exploration stories."""
+    query = select(CultureStory)
+    count_query = select(func.count()).select_from(CultureStory)
+
+    if not include_unpublished:
+        query = query.where(CultureStory.is_published.is_(True))
+        count_query = count_query.where(CultureStory.is_published.is_(True))
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    result = await db.execute(
+        query.order_by(CultureStory.sequence_no, CultureStory.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(result.scalars().all()), total
+
+
+async def get_culture_story(
+    db: AsyncSession,
+    story_id: UUID,
+    include_unpublished: bool = False,
+) -> CultureStory:
+    """Get one culture story."""
+    query = select(CultureStory).where(CultureStory.id == story_id)
+    if not include_unpublished:
+        query = query.where(CultureStory.is_published.is_(True))
+    result = await db.execute(query)
+    story = result.scalar_one_or_none()
+    if story is None:
+        raise NotFoundError("Culture story not found")
+    return story
+
+
+async def create_culture_story(db: AsyncSession, **kwargs: object) -> CultureStory:
+    """Create a culture story."""
+    data = dict(kwargs)
+    data["media"] = _jsonable(data.get("media") or [])
+    data["paragraphs"] = _jsonable(data.get("paragraphs") or [])
+    story = CultureStory(**data)  # type: ignore[arg-type]
+    db.add(story)
+    await db.commit()
+    await db.refresh(story)
+    return story
+
+
+async def update_culture_story(
+    db: AsyncSession,
+    story_id: UUID,
+    **kwargs: object,
+) -> CultureStory:
+    """Update a culture story."""
+    result = await db.execute(select(CultureStory).where(CultureStory.id == story_id))
+    story = result.scalar_one_or_none()
+    if story is None:
+        raise NotFoundError("Culture story not found")
+
+    for key, value in kwargs.items():
+        if value is None or not hasattr(story, key):
+            continue
+        if key in {"media", "paragraphs"}:
+            value = _jsonable(value)
+        setattr(story, key, value)
+
+    await db.commit()
+    await db.refresh(story)
+    return story
+
+
+async def delete_culture_story(db: AsyncSession, story_id: UUID) -> None:
+    """Delete a culture story."""
+    result = await db.execute(select(CultureStory).where(CultureStory.id == story_id))
+    story = result.scalar_one_or_none()
+    if story:
+        await db.delete(story)
         await db.commit()

@@ -13,16 +13,19 @@ from app.models.user import AppRole
 from app.schemas.common import PaginatedResponse
 from app.schemas.content import (
     BlockResponse,
+    CreateCultureStoryRequest,
     CourseResponse,
     CreateBlockRequest,
     CreateCourseRequest,
     CreateLessonRequest,
     CreateQuestionRequest,
     CreateUnitRequest,
+    CultureStoryResponse,
     LanguageResponse,
     LessonDetailResponse,
     LessonResponse,
     QuestionResponse,
+    UpdateCultureStoryRequest,
     UnitResponse,
 )
 from app.services import content_service
@@ -99,6 +102,33 @@ async def list_lessons(
         size=pagination["size"],
         pages=compute_pages(total, pagination["size"]),
     )
+
+
+@router.get("/culture-stories", response_model=PaginatedResponse[CultureStoryResponse])
+async def list_culture_stories(
+    db: AsyncSession = Depends(get_db),
+    pagination: dict = Depends(get_pagination),
+):
+    """List published culture exploration stories."""
+    items, total = await content_service.list_culture_stories(
+        db,
+        include_unpublished=False,
+        offset=pagination["offset"],
+        limit=pagination["limit"],
+    )
+    return PaginatedResponse(
+        items=[CultureStoryResponse.model_validate(i) for i in items],
+        total=total,
+        page=pagination["page"],
+        size=pagination["size"],
+        pages=compute_pages(total, pagination["size"]),
+    )
+
+
+@router.get("/culture-stories/{story_id}", response_model=CultureStoryResponse)
+async def get_culture_story(story_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get a published culture exploration story."""
+    return await content_service.get_culture_story(db, story_id)
 
 
 @router.patch(
@@ -188,6 +218,47 @@ async def add_question(
 ):
     """Add a new question to a lesson (Admin only)."""
     return await content_service.create_question(db, lesson_id, **req.model_dump())
+
+
+@router.post(
+    "/culture-stories",
+    response_model=CultureStoryResponse,
+    dependencies=[Depends(require_role(AppRole.teacher))],
+)
+async def create_culture_story(
+    req: CreateCultureStoryRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a culture exploration story (Teacher+)."""
+    return await content_service.create_culture_story(db, **req.model_dump())
+
+
+@router.patch(
+    "/culture-stories/{story_id}",
+    response_model=CultureStoryResponse,
+    dependencies=[Depends(require_role(AppRole.teacher))],
+)
+async def update_culture_story(
+    story_id: UUID,
+    req: UpdateCultureStoryRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a culture exploration story (Teacher+)."""
+    return await content_service.update_culture_story(
+        db,
+        story_id,
+        **req.model_dump(exclude_unset=True),
+    )
+
+
+@router.delete(
+    "/culture-stories/{story_id}",
+    dependencies=[Depends(require_role(AppRole.teacher))],
+)
+async def delete_culture_story(story_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete a culture exploration story (Teacher+)."""
+    await content_service.delete_culture_story(db, story_id)
+    return {"status": "ok"}
 
 
 @router.patch(

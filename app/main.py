@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import json
 import logging
 from contextlib import asynccontextmanager
 
@@ -247,6 +248,153 @@ async def lifespan(app: FastAPI):
                     )
                     ON CONFLICT (iso_code) DO NOTHING
                     """))
+
+            culture_stories = [
+                {
+                    "id": "ad9b4100-0000-4000-a000-000000000001",
+                    "title": "La vie au café",
+                    "location": "Paris, France",
+                    "category": "Daily culture",
+                    "sequence_no": 1,
+                    "media": [
+                        {
+                            "type": "image",
+                            "url": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&q=80&w=1200",
+                            "caption": "Une terrasse parisienne",
+                        },
+                        {
+                            "type": "image",
+                            "url": "https://images.unsplash.com/photo-1522093007474-d86e9bf7ba6f?auto=format&fit=crop&q=80&w=1200",
+                            "caption": "Un moment de discussion",
+                        },
+                    ],
+                    "paragraphs": [
+                        [
+                            {
+                                "original": "Les cafés parisiens sont au cœur de la vie sociale en France.",
+                                "translated": "Parisian cafes are at the heart of social life in France.",
+                            },
+                            {
+                                "original": "On s’y assoit en terrasse pour regarder les passants, boire un expresso et discuter pendant des heures.",
+                                "translated": "People sit on the terrace to watch passers-by, drink an espresso, and talk for hours.",
+                            },
+                        ],
+                        [
+                            {
+                                "original": "Historiquement, les cafés étaient des lieux de rencontre pour les artistes, les écrivains et les philosophes.",
+                                "translated": "Historically, cafes were meeting places for artists, writers, and philosophers.",
+                            },
+                            {
+                                "original": "Aujourd’hui encore, commander un café peut être une petite pause, mais aussi un rituel quotidien.",
+                                "translated": "Even today, ordering a coffee can be a short break, but also a daily ritual.",
+                            },
+                        ],
+                    ],
+                },
+                {
+                    "id": "ad9b4100-0000-4000-a000-000000000002",
+                    "title": "La Fête de la Musique",
+                    "location": "Toute la France",
+                    "category": "Festival",
+                    "sequence_no": 2,
+                    "media": [
+                        {
+                            "type": "image",
+                            "url": "https://images.unsplash.com/photo-1508973379184-7517410fb0bc?auto=format&fit=crop&q=80&w=1200",
+                            "caption": "Un concert en plein air",
+                        },
+                        {
+                            "type": "video",
+                            "url": "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4",
+                            "caption": "Vidéo culturelle",
+                        },
+                    ],
+                    "paragraphs": [
+                        [
+                            {
+                                "original": "La Fête de la Musique a lieu chaque année le 21 juin, le jour du solstice d’été.",
+                                "translated": "The Music Festival takes place every year on June 21, the day of the summer solstice.",
+                            },
+                            {
+                                "original": "Des musiciens amateurs et professionnels jouent dans les rues, les parcs, les cafés et les places publiques.",
+                                "translated": "Amateur and professional musicians play in streets, parks, cafes, and public squares.",
+                            },
+                        ],
+                        [
+                            {
+                                "original": "L’idée principale est simple : la musique doit être accessible à tout le monde.",
+                                "translated": "The main idea is simple: music should be accessible to everyone.",
+                            },
+                            {
+                                "original": "Dans beaucoup de villes, les habitants se promènent d’un concert à l’autre jusqu’à tard le soir.",
+                                "translated": "In many cities, residents walk from one concert to another until late at night.",
+                            },
+                        ],
+                    ],
+                },
+                {
+                    "id": "ad9b4100-0000-4000-a000-000000000003",
+                    "title": "Les marchés de Provence",
+                    "location": "Provence, France",
+                    "category": "Food and place",
+                    "sequence_no": 3,
+                    "media": [
+                        {
+                            "type": "image",
+                            "url": "https://images.unsplash.com/photo-1471194402529-8e0f5a675de6?auto=format&fit=crop&q=80&w=1200",
+                            "caption": "Un marché du matin",
+                        },
+                        {
+                            "type": "image",
+                            "url": "https://images.unsplash.com/photo-1509474520651-53cf6a80536f?auto=format&fit=crop&q=80&w=1200",
+                            "caption": "Produits locaux",
+                        },
+                    ],
+                    "paragraphs": [
+                        [
+                            {
+                                "original": "En Provence, le marché est souvent un rendez-vous de la semaine.",
+                                "translated": "In Provence, the market is often a weekly meeting point.",
+                            },
+                            {
+                                "original": "On y achète des olives, du fromage, des fruits, des herbes et parfois de la lavande.",
+                                "translated": "People buy olives, cheese, fruit, herbs, and sometimes lavender there.",
+                            },
+                        ],
+                        [
+                            {
+                                "original": "Les vendeurs aiment expliquer l’origine de leurs produits et proposer une dégustation.",
+                                "translated": "Vendors like to explain where their products come from and offer a tasting.",
+                            },
+                            {
+                                "original": "Pour beaucoup de visiteurs, c’est une façon naturelle de découvrir les accents, les saveurs et les habitudes locales.",
+                                "translated": "For many visitors, it is a natural way to discover local accents, flavors, and habits.",
+                            },
+                        ],
+                    ],
+                },
+            ]
+            for story in culture_stories:
+                await conn.execute(
+                    text(
+                        """
+                        INSERT INTO culture_stories (
+                            id, title, location, category, sequence_no, is_published,
+                            media, paragraphs, created_at, updated_at
+                        )
+                        VALUES (
+                            :id, :title, :location, :category, :sequence_no, true,
+                            CAST(:media AS JSONB), CAST(:paragraphs AS JSONB), NOW(), NOW()
+                        )
+                        ON CONFLICT (id) DO NOTHING
+                        """
+                    ),
+                    {
+                        **story,
+                        "media": json.dumps(story["media"]),
+                        "paragraphs": json.dumps(story["paragraphs"]),
+                    },
+                )
 
         with open("startup_debug.txt", "a") as f:
             f.write("Seed command executed\n")
