@@ -157,6 +157,7 @@ async def update_user_onboarding(db: AsyncSession, user: User, **kwargs: object)
     profile = user.profile
     if profile is None:
         profile = UserProfile(user_id=user.id)
+        user.profile = profile
         db.add(profile)
 
     profile_fields = ["display_name", "avatar_url", "bio", "learning_goal", "preferred_voice_id"]
@@ -168,6 +169,7 @@ async def update_user_onboarding(db: AsyncSession, user: User, **kwargs: object)
     settings = user.settings
     if settings is None:
         settings = UserSettings(user_id=user.id)
+        user.settings = settings
         db.add(settings)
 
     settings_fields = [

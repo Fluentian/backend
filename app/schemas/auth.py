@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.core.constants import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
+from app.schemas.user import UserResponse
 
 
 class LoginRequest(BaseModel):
@@ -73,7 +74,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    user: UserBriefResponse
+    user: UserResponse
 
 
 class RefreshRequest(BaseModel):

@@ -43,7 +43,7 @@ def vocab(word: str, meaning: str) -> dict[str, Any]:
             "tts_language": "fr-FR",
             "tts_text": word,
         },
-    }
+    } 
 
 
 def sentence(target: str, base: str) -> dict[str, Any]:

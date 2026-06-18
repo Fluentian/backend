@@ -18,6 +18,7 @@ from app.schemas.auth import (
     UserBriefResponse,
     VerifyOtpRequest,
 )
+from app.schemas.user import UserResponse
 from app.schemas.common import MessageResponse
 from app.services import auth_service
 
@@ -43,7 +44,7 @@ async def verify_email(req: VerifyOtpRequest, db: AsyncSession = Depends(get_db)
     return {
         "access_token": access,
         "refresh_token": refresh,
-        "user": UserBriefResponse.model_validate(user),
+        "user": UserResponse.model_validate(user),
     }
 
 
@@ -61,7 +62,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     return {
         "access_token": access,
         "refresh_token": refresh,
-        "user": UserBriefResponse.model_validate(user),
+        "user": UserResponse.model_validate(user),
     }
 
 
@@ -72,7 +73,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
     return {
         "access_token": access,
         "refresh_token": refresh,
-        "user": UserBriefResponse.model_validate(user),
+        "user": UserResponse.model_validate(user),
     }
 
 
