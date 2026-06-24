@@ -1,6 +1,7 @@
 """Content service — courses, units, lessons, blocks, questions."""
 
 import logging
+import random
 from uuid import UUID
 
 from sqlalchemy import case, func, select
@@ -15,6 +16,7 @@ from app.models.content import (
     PathUnit,
     Question,
 )
+from app.models.user import User
 from app.utils.content_payloads import (
     normalize_block,
     normalize_block_model,
@@ -23,6 +25,52 @@ from app.utils.content_payloads import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _select_dynamic_questions(questions: list, user: User | None) -> list:
+    """Dynamically select and shuffle questions based on user experience (XP).
+    Each user gets a uniquely shuffled sequence of questions.
+    """
+    if not questions or not user:
+        return questions
+
+    # Filter by difficulty based on user level
+    level_difficulty_map = {
+        "a0": [1],
+        "a1": [1, 2],
+        "a2": [2, 3],
+        "b1": [3, 4],
+        "b2": [4, 5],
+        "c1": [5],
+        "c2": [5]
+    }
+    allowed_difficulties = level_difficulty_map.get(user.current_level.value, [1, 2, 3, 4, 5])
+    
+    filtered_questions = [q for q in questions if getattr(q, 'difficulty', 1) in allowed_difficulties]
+    if len(filtered_questions) < 3:
+        filtered_questions = questions
+
+    # Seed based on user id, their XP milestone, and the specific questions
+    # This ensures the shuffle is unique to the user and the specific lesson
+    questions_hash = sum(getattr(q, 'sequence_no', 0) for q in filtered_questions)
+    seed_val = f"{user.id}_{user.xp_total // 50}_{questions_hash}"
+    rnd = random.Random(seed_val)
+    
+    total = len(filtered_questions)
+    if total <= 3:
+        shuffled = list(filtered_questions)
+        rnd.shuffle(shuffled)
+        return shuffled
+        
+    # Select a subset of questions (e.g., 80%) to provide variety
+    num_to_select = max(3, int(total * 0.8))
+    
+    selected = rnd.sample(filtered_questions, num_to_select)
+    # We DO NOT sort by sequence_no here because the goal is to show 
+    # a different sequence of questions to different users.
+    rnd.shuffle(selected)
+    
+    return selected
 
 
 def _jsonable(value: object) -> object:
@@ -36,38 +84,7 @@ def _jsonable(value: object) -> object:
     return value
 
 
-# ── Courses ─────────────────────────────────────────────
-
-
-async def list_courses(
-    db: AsyncSession,
-    level: str | None = None,
-    offset: int = 0,
-    limit: int = 20,
-) -> tuple[list[Course], int]:
-    """List published courses with optional level filter."""
-    query = (
-        select(Course)
-        .where(Course.is_published.is_(True))
-        .order_by(case((Course.code.like("E2E_%"), 1), else_=0), Course.created_at.desc())
-    )
-    count_query = select(func.count()).select_from(Course).where(Course.is_published.is_(True))
-
-    if level:
-        query = query.where(Course.level_min <= level, Course.level_max >= level)
-        count_query = count_query.where(Course.level_min <= level, Course.level_max >= level)
-
-    total_result = await db.execute(count_query)
-    total = total_result.scalar() or 0
-
-    query = query.offset(offset).limit(limit)
-    result = await db.execute(query)
-    courses = list(result.scalars().all())
-
-    return courses, total
-
-
-async def get_course(db: AsyncSession, course_id: UUID) -> Course:
+async def get_course(db: AsyncSession, course_id: UUID, user: User | None = None) -> Course:
     """Get a single course by ID."""
     result = await db.execute(select(Course).where(Course.id == course_id))
     course = result.scalar_one_or_none()
@@ -76,44 +93,7 @@ async def get_course(db: AsyncSession, course_id: UUID) -> Course:
     return course
 
 
-async def create_course(db: AsyncSession, **kwargs: object) -> Course:
-    """Create a new course."""
-    course = Course(**kwargs)  # type: ignore[arg-type]
-    db.add(course)
-    await db.commit()
-    await db.refresh(course)
-    return course
-
-
-async def update_course(db: AsyncSession, course_id: UUID, **kwargs: object) -> Course:
-    """Update a course's metadata."""
-    result = await db.execute(select(Course).where(Course.id == course_id))
-    course = result.scalar_one_or_none()
-    if course is None:
-        raise NotFoundError("Course not found")
-
-    for key, value in kwargs.items():
-        if hasattr(course, key):
-            setattr(course, key, value)
-
-    await db.commit()
-    await db.refresh(course)
-    return course
-
-
-async def delete_course(db: AsyncSession, course_id: UUID) -> None:
-    """Delete a course."""
-    result = await db.execute(select(Course).where(Course.id == course_id))
-    course = result.scalar_one_or_none()
-    if course:
-        await db.delete(course)
-        await db.commit()
-
-
-# ── Units ───────────────────────────────────────────────
-
-
-async def get_course_units(db: AsyncSession, course_id: UUID) -> list[PathUnit]:
+async def get_course_units(db: AsyncSession, course_id: UUID, user: User | None = None) -> list[PathUnit]:
     """Get all units for a course."""
     result = await db.execute(
         select(PathUnit).where(PathUnit.course_id == course_id).order_by(PathUnit.unit_no)
@@ -121,72 +101,8 @@ async def get_course_units(db: AsyncSession, course_id: UUID) -> list[PathUnit]:
     return list(result.scalars().all())
 
 
-async def create_unit(db: AsyncSession, course_id: UUID, **kwargs: object) -> PathUnit:
-    """Create a unit within a course."""
-    unit = PathUnit(course_id=course_id, **kwargs)  # type: ignore[arg-type]
-    db.add(unit)
-    await db.commit()
-    await db.refresh(unit)
-    return unit
-
-
-# ── Lessons ─────────────────────────────────────────────
-
-
-async def list_lessons(
-    db: AsyncSession,
-    course_id: UUID | None = None,
-    unit_id: UUID | None = None,
-    offset: int = 0,
-    limit: int = 20,
-) -> tuple[list[Lesson], int]:
-    """List lessons with optional filters."""
-    query = select(Lesson)
-    count_query = select(func.count()).select_from(Lesson)
-
-    if course_id:
-        query = query.where(Lesson.course_id == course_id)
-        count_query = count_query.where(Lesson.course_id == course_id)
-    if unit_id:
-        query = query.where(Lesson.unit_id == unit_id)
-        count_query = count_query.where(Lesson.unit_id == unit_id)
-
-    total_result = await db.execute(count_query)
-    total = total_result.scalar() or 0
-
-    query = query.offset(offset).limit(limit).order_by(Lesson.created_at.desc())
-    result = await db.execute(query)
-    lessons = list(result.scalars().all())
-
-    return lessons, total
-
-
-async def get_lesson(db: AsyncSession, lesson_id: UUID) -> Lesson:
-    """Get a lesson with its blocks and questions."""
-    result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
-    lesson = result.scalar_one_or_none()
-    if lesson is None:
-        raise NotFoundError("Lesson not found")
-    for block in lesson.blocks:
-        normalize_block_model(block)
-    for question in lesson.questions:
-        normalize_question_model(question)
-    return lesson
-
-
-async def get_lesson_questions(db: AsyncSession, lesson_id: UUID) -> list[Question]:
-    """Get all questions for a lesson."""
-    result = await db.execute(
-        select(Question).where(Question.lesson_id == lesson_id).order_by(Question.sequence_no)
-    )
-    questions = list(result.scalars().all())
-    for question in questions:
-        normalize_question_model(question)
-    return questions
-
-
 async def create_lesson(db: AsyncSession, unit_id: UUID, **kwargs: object) -> Lesson:
-    """Create a lesson within a unit."""
+    """Create a new lesson."""
     # Get the unit to find course_id
     result = await db.execute(select(PathUnit).where(PathUnit.id == unit_id))
     unit = result.scalar_one_or_none()
@@ -200,12 +116,37 @@ async def create_lesson(db: AsyncSession, unit_id: UUID, **kwargs: object) -> Le
     return lesson
 
 
+async def get_lesson(db: AsyncSession, lesson_id: UUID, user: User | None = None) -> Lesson:
+    """Get a lesson with its blocks and questions."""
+    result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    lesson = result.scalar_one_or_none()
+    if lesson is None:
+        raise NotFoundError("Lesson not found")
+    
+    # Materialize relationships
+    blocks_list = list(lesson.blocks)
+    questions_list = list(lesson.questions)
+
+    for block in blocks_list:
+        normalize_block_model(block)
+        
+    for question in questions_list:
+        normalize_question_model(question)
+
+    # Only apply dynamic selection to questions
+    dynamic_questions = _select_dynamic_questions(questions_list, user)
+    
+    lesson.blocks = blocks_list  # type: ignore[assignment]
+    lesson.questions = dynamic_questions  # type: ignore[assignment]
+    
+    return lesson
+
+
 async def update_lesson(db: AsyncSession, lesson_id: UUID, **kwargs: object) -> Lesson:
     """Update a lesson's metadata."""
     result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
     lesson = result.scalar_one_or_none()
-    from app.core.exceptions import NotFoundError
-
+    
     if lesson is None:
         raise NotFoundError("Lesson not found")
 
@@ -265,8 +206,7 @@ async def update_block(db: AsyncSession, block_id: UUID, **kwargs: object) -> Le
     """Update a content block."""
     result = await db.execute(select(LessonBlock).where(LessonBlock.id == block_id))
     block = result.scalar_one_or_none()
-    from app.core.exceptions import NotFoundError
-
+    
     if block is None:
         raise NotFoundError("Block not found")
 
@@ -293,12 +233,23 @@ async def delete_block(db: AsyncSession, block_id: UUID) -> None:
         await db.commit()
 
 
+async def get_lesson_questions(db: AsyncSession, lesson_id: UUID, user: User | None = None) -> list[Question]:
+    """Get all questions for a lesson."""
+    result = await db.execute(
+        select(Question).where(Question.lesson_id == lesson_id).order_by(Question.sequence_no)
+    )
+    questions = list(result.scalars().all())
+    for question in questions:
+        normalize_question_model(question)
+        
+    return _select_dynamic_questions(questions, user)
+
+
 async def update_question(db: AsyncSession, question_id: UUID, **kwargs: object) -> Question:
     """Update a question."""
     result = await db.execute(select(Question).where(Question.id == question_id))
     question = result.scalar_one_or_none()
-    from app.core.exceptions import NotFoundError
-
+    
     if question is None:
         raise NotFoundError("Question not found")
 
@@ -329,6 +280,31 @@ async def delete_question(db: AsyncSession, question_id: UUID) -> None:
     if question:
         await db.delete(question)
         await db.commit()
+
+
+async def get_due_srs_questions(db: AsyncSession, user: User) -> list[Question]:
+    """Get questions that are due for spaced repetition review for the user."""
+    from app.models.progress import SpacedRepetitionItem
+    from datetime import datetime, UTC
+    
+    now = datetime.now(UTC)
+    result = await db.execute(
+        select(Question)
+        .join(SpacedRepetitionItem, SpacedRepetitionItem.question_id == Question.id)
+        .where(
+            SpacedRepetitionItem.user_id == user.id,
+            SpacedRepetitionItem.next_review_date <= now
+        )
+        .order_by(SpacedRepetitionItem.next_review_date.asc())
+        .limit(20) # cap review lesson at 20 questions
+    )
+    questions = list(result.scalars().all())
+    for question in questions:
+        normalize_question_model(question)
+        
+    # We DO NOT apply dynamic subset selection here because the user
+    # specifically needs to review exactly these due questions.
+    return questions
 
 
 # Culture stories

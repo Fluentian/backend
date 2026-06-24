@@ -126,6 +126,7 @@ class QuestionResponse(BaseModel):
     lesson_id: UUID
     question_kind: str
     sequence_no: int
+    difficulty: int
     prompt_payload: dict[str, Any]
     grading_payload: dict[str, Any]
     created_at: datetime
@@ -134,6 +135,7 @@ class QuestionResponse(BaseModel):
 class CreateQuestionRequest(BaseModel):
     question_kind: str
     sequence_no: int
+    difficulty: int = 1
     prompt_payload: dict[str, Any] = {}
     grading_payload: dict[str, Any] = {}
 

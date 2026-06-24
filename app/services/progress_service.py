@@ -16,7 +16,7 @@ from app.core.constants import (
 )
 from app.core.exceptions import NotFoundError
 from app.models.content import Course, CourseEnrollment, Lesson, Question
-from app.models.progress import UserLessonProgress, UserUnitProgress
+from app.models.progress import UserLessonProgress, UserUnitProgress, SpacedRepetitionItem
 from app.models.user import User
 from app.schemas.progress import AnswerPayload
 from app.utils.content_payloads import grade_answer, normalize_question_model
@@ -67,6 +67,43 @@ async def complete_lesson(
             )
         answers = graded
         score = correct_count / len(answers)
+
+        # SRS Logic Update
+        now = datetime.now(UTC)
+        q_ids = [a.question_id for a in answers]
+        srs_result = await db.execute(
+            select(SpacedRepetitionItem).where(
+                SpacedRepetitionItem.user_id == user.id,
+                SpacedRepetitionItem.question_id.in_(q_ids)
+            )
+        )
+        srs_items = {item.question_id: item for item in srs_result.scalars().all()}
+        
+        for ans in answers:
+            item = srs_items.get(ans.question_id)
+            if not item:
+                item = SpacedRepetitionItem(
+                    user_id=user.id,
+                    question_id=ans.question_id,
+                    interval_days=1,
+                    easiness_factor=2.5,
+                    next_review_date=now
+                )
+                db.add(item)
+            
+            # Simple SM-2 update
+            if ans.is_correct:
+                quality = 4
+                if item.interval_days == 1:
+                    item.interval_days = 6
+                else:
+                    item.interval_days = int(item.interval_days * item.easiness_factor)
+            else:
+                quality = 1
+                item.interval_days = 1
+                
+            item.easiness_factor = max(1.3, item.easiness_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+            item.next_review_date = now + timedelta(days=item.interval_days)
 
     if score >= 1.0:
         multiplier = XP_MULTIPLIER_PERFECT

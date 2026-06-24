@@ -25,6 +25,7 @@ from app.schemas.user import (
     OpportunityApplicationResponse,
     OpportunityResponse,
 )
+from app.services import notification_service
 
 
 @router.get("/", response_model=PaginatedResponse[OpportunityResponse])
@@ -140,7 +141,14 @@ async def update_application_status(
     if not application:
         raise HTTPException(404, "Application not found")
 
-    application.status = status
-    await db.commit()
-    await db.refresh(application)
+    if application.status != status:
+        application.status = status
+        await db.commit()
+        await db.refresh(application)
+        
+        # Trigger notification
+        title = "Opportunity Update"
+        body = f"Your application status has been updated to: {status.capitalize()}."
+        await notification_service.create_notification(db, application.user_id, title, body)
+        
     return application

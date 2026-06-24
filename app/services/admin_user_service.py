@@ -229,6 +229,7 @@ async def reactivate_user(
 
     # Check authorization
     await _check_role_permission(admin_user, user.role)
+    
 
     user.is_active = True
     await db.commit()

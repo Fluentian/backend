@@ -256,6 +256,7 @@ class Question(UUIDMixin, TimestampMixin, Base):
         Enum(QuestionKind, name="question_kind", create_constraint=True), nullable=False
     )
     sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    difficulty: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     prompt_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)  # type: ignore[assignment]
     grading_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)  # type: ignore[assignment]
     created_at: Mapped[datetime] = mapped_column(

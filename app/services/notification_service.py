@@ -113,3 +113,36 @@ async def broadcast_notification(db: AsyncSession, title: str, body: str) -> int
         db.add(Notification(user_id=user_id, title=title, body=body))
     await db.commit()
     return len(user_ids)
+
+
+async def generate_daily_reminders(db: AsyncSession) -> int:
+    """Generate daily streak reminders for users who haven't completed their daily goal today."""
+    from datetime import datetime, timedelta, UTC
+    now = datetime.now(UTC)
+    today = now.date()
+
+    # Find users who have a streak > 0, but haven't been active today
+    # and have learning reminders enabled in settings
+    result = await db.execute(
+        select(User)
+        .outerjoin(UserSettings, UserSettings.user_id == User.id)
+        .where(
+            User.streak_days > 0,
+            User.is_active.is_(True),
+            User.last_activity_date < now.replace(hour=0, minute=0, second=0, microsecond=0),
+            or_(
+                UserSettings.user_id.is_(None),
+                UserSettings.learning_reminder_enabled.is_(True),
+            ),
+        )
+    )
+    users = list(result.scalars().all())
+    count = 0
+    for user in users:
+        title = "Keep your streak alive! 🔥"
+        body = f"You have a {user.streak_days}-day streak! Practice for {user.daily_goal_minutes} minutes today to keep it going."
+        db.add(Notification(user_id=user.id, title=title, body=body))
+        count += 1
+        
+    await db.commit()
+    return count

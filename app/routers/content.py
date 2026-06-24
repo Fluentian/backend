@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_pagination, require_role
+from app.dependencies import get_pagination, require_role, get_current_user
 from app.models.content import Language
-from app.models.user import AppRole
+from app.models.user import AppRole, User
 from app.schemas.common import PaginatedResponse
 from app.schemas.content import (
     BlockResponse,
@@ -129,6 +129,15 @@ async def list_culture_stories(
 async def get_culture_story(story_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a published culture exploration story."""
     return await content_service.get_culture_story(db, story_id)
+
+
+@router.get("/review", response_model=list[QuestionResponse])
+async def get_srs_review(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get questions due for spaced repetition review."""
+    return await content_service.get_due_srs_questions(db, user)
 
 
 @router.patch(

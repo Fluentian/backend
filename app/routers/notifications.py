@@ -79,6 +79,20 @@ async def create_notification(
     return {"message": "Notification sent"}
 
 
+@router.post("/trigger-reminders", response_model=MessageResponse, status_code=status.HTTP_200_OK)
+async def trigger_daily_reminders(
+    admin_user: User = Depends(require_role(AppRole.admin)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually trigger daily streak reminders (Admin only)."""
+    del admin_user
+    sent_count = await notification_service.generate_daily_reminders(db)
+    return {
+        "message": "Daily reminders triggered",
+        "detail": f"{sent_count} reminders sent",
+    }
+
+
 @router.patch("/{notification_id}/read", response_model=MessageResponse)
 async def mark_read(
     notification_id: UUID,
