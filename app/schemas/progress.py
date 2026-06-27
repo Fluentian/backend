@@ -29,6 +29,10 @@ class CompleteLessonRequest(BaseModel):
             raise ValueError(msg)
         return v
 
+class SrsReviewSubmitPayload(BaseModel):
+    answers: list[AnswerPayload]
+    time_seconds: int
+
 
 class CompleteLessonResponse(BaseModel):
     xp_earned: int

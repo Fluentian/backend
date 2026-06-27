@@ -132,7 +132,10 @@ async def generate_daily_reminders(db: AsyncSession) -> int:
             User.last_activity_date < now.replace(hour=0, minute=0, second=0, microsecond=0),
             or_(
                 UserSettings.user_id.is_(None),
-                UserSettings.learning_reminder_enabled.is_(True),
+                (
+                    UserSettings.notifications_enabled.is_(True)
+                    & UserSettings.learning_reminder_enabled.is_(True)
+                ),
             ),
         )
     )

@@ -120,6 +120,49 @@ async def lifespan(app: FastAPI):
                     "ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE questions "
+                    "ADD COLUMN IF NOT EXISTS difficulty INTEGER DEFAULT 1 NOT NULL"
+                )
+            )
+
+            # Spaced repetition table
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS spaced_repetition_items (
+                        id UUID PRIMARY KEY,
+                        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+                        interval_days INTEGER DEFAULT 1 NOT NULL,
+                        easiness_factor DOUBLE PRECISION DEFAULT 2.5 NOT NULL,
+                        next_review_date TIMESTAMPTZ NOT NULL,
+                        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+                        updated_at TIMESTAMPTZ
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_spaced_repetition_items_user_id "
+                    "ON spaced_repetition_items(user_id)"
+                )
+            )
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_spaced_repetition_items_question_id "
+                    "ON spaced_repetition_items(question_id)"
+                )
+            )
+            await conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS "
+                    "uq_spaced_repetition_items_user_question "
+                    "ON spaced_repetition_items(user_id, question_id)"
+                )
+            )
 
             # Opportunity applications table
             await conn.execute(

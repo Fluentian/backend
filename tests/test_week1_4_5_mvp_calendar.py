@@ -20,7 +20,7 @@ def _user(username: str = "learner") -> User:
 
 
 async def _published_course(db_session: AsyncSession) -> tuple[Course, PathUnit, Lesson]:
-    suffix = uuid4().hex[:8]
+    suffix = uuid4().hex[:6]
     language = Language(
         iso_code=f"fr-{suffix}", english_name="French", native_name="Francais"
     )

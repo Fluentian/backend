@@ -7,7 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_pagination, require_role, get_current_user
+from app.dependencies import (
+    get_current_user,
+    get_current_user_optional,
+    get_pagination,
+    require_role,
+)
 from app.models.content import Language
 from app.models.user import AppRole, User
 from app.schemas.common import PaginatedResponse
@@ -28,6 +33,7 @@ from app.schemas.content import (
     UpdateCultureStoryRequest,
     UnitResponse,
 )
+from app.schemas.progress import SrsReviewSubmitPayload
 from app.services import content_service
 from app.utils.helpers import compute_pages
 
@@ -73,15 +79,23 @@ async def list_units(course_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/lessons/{lesson_id}", response_model=LessonDetailResponse)
-async def get_lesson(lesson_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_lesson(
+    lesson_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
     """Get full lesson detail."""
-    return await content_service.get_lesson(db, lesson_id)
+    return await content_service.get_lesson(db, lesson_id, user)
 
 
 @router.get("/lessons/{lesson_id}/questions", response_model=list)
-async def list_questions(lesson_id: UUID, db: AsyncSession = Depends(get_db)):
+async def list_questions(
+    lesson_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
     """Get all questions for a lesson."""
-    return await content_service.get_lesson_questions(db, lesson_id)
+    return await content_service.get_lesson_questions(db, lesson_id, user)
 
 
 @router.get("/lessons", response_model=PaginatedResponse[LessonResponse])
@@ -138,6 +152,17 @@ async def get_srs_review(
 ):
     """Get questions due for spaced repetition review."""
     return await content_service.get_due_srs_questions(db, user)
+
+@router.post("/review/complete")
+async def post_srs_review_complete(
+    payload: SrsReviewSubmitPayload,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.services.progress_service import complete_srs_review
+
+    return await complete_srs_review(db, user, payload.answers, payload.time_seconds)
+
 
 
 @router.patch(

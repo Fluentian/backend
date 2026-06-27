@@ -324,3 +324,103 @@ async def _check_unit_completion(db: AsyncSession, user_id: UUID, unit_id: UUID)
             unit_progress.is_completed = True
         return True
     return False
+
+async def complete_srs_review(
+    db: AsyncSession,
+    user: User,
+    answers: list[AnswerPayload],
+    time_seconds: int,
+) -> dict:
+    """Complete an SRS review session: process answers, update SM-2 logic, and award flat XP."""
+    if not answers:
+        return {"xp_earned": 0, "new_xp_total": user.xp_total, "streak_days": user.streak_days}
+
+    # Extract unique question IDs
+    q_ids = [a.question_id for a in answers]
+    questions_result = await db.execute(
+        select(Question).where(Question.id.in_(q_ids))
+    )
+    questions = list(questions_result.scalars().all())
+    for question in questions:
+        normalize_question_model(question)
+    question_by_id = {q.id: q for q in questions}
+
+    graded: list[AnswerPayload] = []
+    correct_count = 0
+    for submitted in answers:
+        question = question_by_id.get(submitted.question_id)
+        is_correct = (
+            grade_answer(question, submitted.answer)
+            if question is not None
+            else submitted.is_correct
+        )
+        if is_correct:
+            correct_count += 1
+        graded.append(
+            AnswerPayload(
+                question_id=submitted.question_id,
+                answer=submitted.answer,
+                is_correct=is_correct,
+            )
+        )
+    
+    # Calculate SRS SM-2 logic
+    now = datetime.now(UTC)
+    srs_result = await db.execute(
+        select(SpacedRepetitionItem).where(
+            SpacedRepetitionItem.user_id == user.id,
+            SpacedRepetitionItem.question_id.in_(q_ids)
+        )
+    )
+    srs_items = {item.question_id: item for item in srs_result.scalars().all()}
+    
+    for ans in graded:
+        item = srs_items.get(ans.question_id)
+        if not item:
+            item = SpacedRepetitionItem(
+                user_id=user.id,
+                question_id=ans.question_id,
+                interval_days=1,
+                easiness_factor=2.5,
+                next_review_date=now
+            )
+            db.add(item)
+        
+        if ans.is_correct:
+            quality = 4
+            if item.interval_days == 1:
+                item.interval_days = 6
+            else:
+                item.interval_days = int(item.interval_days * item.easiness_factor)
+        else:
+            quality = 2
+            item.interval_days = 1
+            
+        item.easiness_factor = max(1.3, item.easiness_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+        item.next_review_date = now + timedelta(days=item.interval_days)
+
+    # Calculate flat XP (e.g., 5 XP per correct review answer)
+    xp_earned = correct_count * 5
+
+    # Update Streak Logic
+    today = now.date()
+    last_activity = user.last_activity_date.date() if user.last_activity_date else None
+    
+    if last_activity != today:
+        if last_activity == today - timedelta(days=1):
+            user.streak_days += 1
+        else:
+            user.streak_days = 1
+        user.last_activity_date = now
+
+    user.xp_total += xp_earned
+    await db.commit()
+    await db.refresh(user)
+
+    return {
+        "xp_earned": xp_earned,
+        "new_xp_total": user.xp_total,
+        "streak_days": user.streak_days,
+        "hearts_remaining": user.hearts,
+    }
+
