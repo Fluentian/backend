@@ -280,7 +280,7 @@ CURRICULUM: list[dict[str, Any]] = [
                 ],
                 "questions": [
                     match("Match the family words.", [("le pere", "father"), ("la mere", "mother"), ("la soeur", "sister")]),
-                    fill_blank("Mon ____ s'appelle David. (brother)", "frere", ["frere", "frère"]),
+                    fill_blank("Mon ____ s'appelle David. (brother)", "frere", ["frere"]),
                     mcq_multi("Which two words are family members?", ["merci", "la mere", "le frere", "bonjour"], ["la mere", "le frere"]),
                 ],
             },

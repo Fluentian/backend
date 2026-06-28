@@ -4,8 +4,9 @@ import logging
 import random
 from uuid import UUID
 
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import NotFoundError
 from app.models.content import (
@@ -86,11 +87,43 @@ def _jsonable(value: object) -> object:
 
 async def get_course(db: AsyncSession, course_id: UUID, user: User | None = None) -> Course:
     """Get a single course by ID."""
-    result = await db.execute(select(Course).where(Course.id == course_id))
+    result = await db.execute(
+        select(Course)
+        .options(selectinload(Course.units).selectinload(PathUnit.lessons))
+        .where(Course.id == course_id)
+    )
     course = result.scalar_one_or_none()
     if course is None:
         raise NotFoundError("Course not found")
     return course
+
+
+async def list_courses(
+    db: AsyncSession,
+    level: str | None = None,
+    offset: int = 0,
+    limit: int = 20,
+) -> tuple[list[Course], int]:
+    """List published courses with units and lessons for the mobile home screen."""
+    query = select(Course).where(Course.is_published.is_(True))
+    count_query = select(func.count()).select_from(Course).where(Course.is_published.is_(True))
+
+    if level:
+        normalized = level.upper()
+        query = query.where(Course.level_min <= normalized, Course.level_max >= normalized)
+        count_query = count_query.where(
+            Course.level_min <= normalized,
+            Course.level_max >= normalized,
+        )
+
+    total = (await db.execute(count_query)).scalar() or 0
+    result = await db.execute(
+        query.options(selectinload(Course.units).selectinload(PathUnit.lessons))
+        .order_by(Course.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(result.scalars().all()), total
 
 
 async def get_course_units(db: AsyncSession, course_id: UUID, user: User | None = None) -> list[PathUnit]:
@@ -99,6 +132,47 @@ async def get_course_units(db: AsyncSession, course_id: UUID, user: User | None 
         select(PathUnit).where(PathUnit.course_id == course_id).order_by(PathUnit.unit_no)
     )
     return list(result.scalars().all())
+
+
+async def create_course(db: AsyncSession, **kwargs: object) -> Course:
+    """Create a course."""
+    course = Course(**kwargs)  # type: ignore[arg-type]
+    db.add(course)
+    await db.commit()
+    await db.refresh(course)
+    return course
+
+
+async def update_course(db: AsyncSession, course_id: UUID, **kwargs: object) -> Course:
+    """Update a course."""
+    course = await get_course(db, course_id)
+    for key, value in kwargs.items():
+        if hasattr(course, key):
+            setattr(course, key, value)
+    await db.commit()
+    await db.refresh(course)
+    return course
+
+
+async def delete_course(db: AsyncSession, course_id: UUID) -> None:
+    """Delete a course."""
+    course = await get_course(db, course_id)
+    await db.delete(course)
+    await db.commit()
+
+
+async def create_unit(db: AsyncSession, course_id: UUID, **kwargs: object) -> PathUnit:
+    """Create a unit for a course."""
+    result = await db.execute(select(Course).where(Course.id == course_id))
+    course = result.scalar_one_or_none()
+    if course is None:
+        raise NotFoundError("Course not found")
+
+    unit = PathUnit(course_id=course_id, **kwargs)  # type: ignore[arg-type]
+    db.add(unit)
+    await db.commit()
+    await db.refresh(unit)
+    return unit
 
 
 async def create_lesson(db: AsyncSession, unit_id: UUID, **kwargs: object) -> Lesson:
@@ -114,6 +188,31 @@ async def create_lesson(db: AsyncSession, unit_id: UUID, **kwargs: object) -> Le
     await db.commit()
     await db.refresh(lesson)
     return lesson
+
+
+async def list_lessons(
+    db: AsyncSession,
+    course_id: UUID | None = None,
+    unit_id: UUID | None = None,
+    offset: int = 0,
+    limit: int = 20,
+) -> tuple[list[Lesson], int]:
+    """List lessons, optionally filtered by course or unit."""
+    query = select(Lesson)
+    count_query = select(func.count()).select_from(Lesson)
+
+    if course_id is not None:
+        query = query.where(Lesson.course_id == course_id)
+        count_query = count_query.where(Lesson.course_id == course_id)
+    if unit_id is not None:
+        query = query.where(Lesson.unit_id == unit_id)
+        count_query = count_query.where(Lesson.unit_id == unit_id)
+
+    total = (await db.execute(count_query)).scalar() or 0
+    result = await db.execute(
+        query.order_by(Lesson.sequence_no).offset(offset).limit(limit)
+    )
+    return list(result.scalars().all()), total
 
 
 async def get_lesson(db: AsyncSession, lesson_id: UUID, user: User | None = None) -> Lesson:
