@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # ── AI ──────────────────────────────────────────────
+    AI_GATEWAY_API_KEY: str = ""
+    AI_GATEWAY_MODEL: str = "google/gemini-2.5-flash"
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-flash"
 

@@ -65,6 +65,20 @@ class AiChatResponse(BaseModel):
     pronunciation_tips: list[PronunciationTip] = []
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+    systemContext: str | None = None
+
+
+class ChatTextResponse(BaseModel):
+    text: str
+
+
 # ── Explanation ─────────────────────────────────────────
 
 

@@ -12,6 +12,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.middleware import setup_middleware
 from app.routers import (
     admin,
+    ai,
     analytics,
     auth,
     content,
@@ -476,6 +477,7 @@ register_exception_handlers(app)
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(ai.router, prefix="/api/v1")
 app.include_router(students.router, prefix="/api/v1")
 app.include_router(content.router, prefix="/api/v1")
 app.include_router(progress.router, prefix="/api/v1")

@@ -5,12 +5,19 @@ import logging
 from uuid import UUID
 
 import google.generativeai as genai
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.ai import AiConversationMessage
 from app.models.user import ProficiencyLevel
-from app.schemas.ai import AiChatResponse, GrammarIssue, MessageResponse, PronunciationTip
+from app.schemas.ai import (
+    AiChatResponse,
+    ChatMessage,
+    GrammarIssue,
+    MessageResponse,
+    PronunciationTip,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +120,78 @@ class GeminiService:
         except Exception as e:
             logger.error(f"Gemini API error: {e}")
             return self._mock_response(conversation_id, user_message)
+
+    async def generate_chat_text(
+        self,
+        messages: list[ChatMessage],
+        system_context: str | None = None,
+    ) -> str:
+        """Generate a simple assistant reply for the mobile AI tutor sheet."""
+        if not messages:
+            return "Bonjour! What would you like help with today?"
+
+        system_prompt = system_context or (
+            "You are a helpful, friendly French language tutor. Keep answers concise, "
+            "clear, and appropriate for a language learner."
+        )
+
+        if settings.AI_GATEWAY_API_KEY:
+            gateway_text = await self._generate_ai_gateway_text(messages, system_prompt)
+            if gateway_text:
+                return gateway_text
+
+        if not self.model:
+            return "Bonjour! I am your French tutor. Ask me about the lesson and I will help."
+
+        transcript = "\n".join(
+            f"{message.role}: {message.content}" for message in messages[-12:]
+        )
+        prompt = f"{system_prompt}\n\nConversation so far:\n{transcript}\n\nassistant:"
+
+        try:
+            response = await self.model.generate_content_async(prompt)
+            return response.text.strip()
+        except Exception as e:
+            logger.error(f"Gemini chat error: {e}")
+            return "Sorry, I am having trouble answering right now. Please try again in a moment."
+
+    async def _generate_ai_gateway_text(
+        self,
+        messages: list[ChatMessage],
+        system_prompt: str,
+    ) -> str | None:
+        """Call Vercel AI Gateway through its OpenAI-compatible chat endpoint."""
+        payload_messages = [{"role": "system", "content": system_prompt}]
+        payload_messages.extend(
+            {
+                "role": "assistant" if message.role == "assistant" else "user",
+                "content": message.content,
+            }
+            for message in messages[-12:]
+        )
+        payload = {
+            "model": settings.AI_GATEWAY_MODEL,
+            "messages": payload_messages,
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.AI_GATEWAY_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://ai-gateway.vercel.sh/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+            response.raise_for_status()
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            return content.strip() if isinstance(content, str) else None
+        except Exception as e:
+            logger.error(f"Vercel AI Gateway chat error: {e}")
+            return None
 
     def _mock_response(self, conversation_id: UUID, user_message: str) -> AiChatResponse:
         """Fallback mock response."""

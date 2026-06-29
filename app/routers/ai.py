@@ -13,6 +13,8 @@ from app.models.ai import AiConversation
 from app.models.user import User
 from app.schemas.ai import (
     AiChatResponse,
+    ChatRequest,
+    ChatTextResponse,
     ConversationDetailResponse,
     ConversationResponse,
     CreateConversationRequest,
@@ -25,6 +27,16 @@ from app.services.ai_service import ai_service
 from app.utils.helpers import compute_pages
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+@router.post("/chat", response_model=ChatTextResponse)
+async def chat(
+    req: ChatRequest,
+    user: User = Depends(get_current_active_user),
+):
+    """Generate a simple AI tutor reply for the mobile app."""
+    text = await ai_service.generate_chat_text(req.messages, req.systemContext)
+    return {"text": text}
 
 
 @router.post("/conversations", response_model=ConversationResponse)
